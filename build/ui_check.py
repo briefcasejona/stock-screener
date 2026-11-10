@@ -12,7 +12,7 @@ import urllib.request
 
 from playwright.sync_api import sync_playwright
 
-PAGES = {'candidates': 'Candidates', 'screener': 'Screener', 'journal': 'Journal', 'reports': 'Add a report',
+PAGES = {'candidates': 'Candidates', 'scoreboard': 'Scoreboard', 'screener': 'Screener', 'journal': 'Journal', 'reports': 'Add a report',
          'update': 'Update data', 'guide': 'How to use it'}
 
 

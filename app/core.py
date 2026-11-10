@@ -197,6 +197,8 @@ def _ns(**kw):
 
 def wl(cmd, **kw):
     """Run a watchlist command. Returns (result, error message). Its printed output is kept out of the way."""
+    if cmd in ('add', 'set', 'check') and not data_ready():
+        return None, NOT_READY
     import watchlist as w
     fn = {'add': w.cmd_add, 'set': w.cmd_set, 'remove': w.cmd_remove, 'check': w.cmd_check,
           'watch': lambda a: w.cmd_mode(a, 'watch'), 'once': lambda a: w.cmd_mode(a, 'once')}[cmd]
@@ -256,6 +258,32 @@ PRICES_ONLY = ['prices_us', 'prices_eu', 'fx_eu', 'screen_us', 'screen_eu', 'bui
 FULL = ['fetch_sec', 'prices_us', 'extract_us', 'cross_us', 'screen_us',
         'prices_eu', 'extract_eu', 'fx_eu', 'cross_eu', 'screen_eu', 'build']
 AFTER_REPORT = ['prices_eu', 'extract_eu', 'fx_eu', 'cross_eu', 'screen_eu', 'build']
+# Prices, exchange rates and the second-source figures come from Yahoo, so they are not in the download: each copy of
+# the program fetches them on its first start (and keeps them when it updates itself, see desktop.program_root).
+FIRST_DOWNLOAD = ['prices_us', 'prices_eu', 'fx_eu', 'cross_us', 'cross_eu', 'screen_us', 'screen_eu', 'build']
+DOWNLOADED = ['raw/prices_us.csv', 'raw/prices_eu.csv', 'raw/splits_us.json', 'raw/splits_eu.json', 'raw/fx.json',
+              'raw/yahoo_statements_us.json', 'raw/yahoo_statements_eu.json',
+              'output/crosscheck_us.csv', 'output/crosscheck_eu.csv']
+NOT_READY = ('The program is still getting today\'s prices and the second-source figures (only the first time it '
+             'starts). You can do this as soon as that is done; the progress is on the Update data page.')
+
+
+def first_download_needed():
+    """True when a downloaded file is missing, or the first download stopped before it finished."""
+    import jobs
+    s = jobs.status() or {}
+    if s.get('kind') == 'first' and s.get('state') != 'done':
+        return True
+    return not all(os.path.exists(os.path.join(SCREENER, f)) for f in DOWNLOADED)
+
+
+def data_ready():
+    """Analysing a company and the weekly check need the downloaded prices."""
+    import jobs
+    live = jobs.running()
+    if live and live.get('kind') == 'first':
+        return False
+    return not first_download_needed()
 
 
 def clear_for_full_refresh():
@@ -310,7 +338,7 @@ def own_reports():
 
 # ---------- backups ----------
 
-BACKUP_PARTS = ['journal', 'user_reports', 'pdf_maps', 'added_companies.csv', 'settings.json']
+BACKUP_PARTS = ['journal', 'user_reports', 'pdf_maps', 'added_companies.csv', 'settings.json', 'portfolio.json']
 MAX_RESTORE = 500 * 2**20  # a backup that unpacks to more than this is not one of ours
 
 

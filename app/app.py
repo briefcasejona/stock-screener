@@ -5,7 +5,7 @@ from datetime import date, timedelta
 import streamlit as st
 
 import core
-from views import candidates, guide, journal, reports, screener, update
+from views import candidates, guide, journal, reports, scoreboard, screener, update
 
 st.set_page_config(page_title='Stock Screener', page_icon=':material/query_stats:', layout='wide')
 st.html('<style>' + open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'style.css'), encoding='utf-8').read()
@@ -13,6 +13,7 @@ st.html('<style>' + open(os.path.join(os.path.dirname(os.path.abspath(__file__))
 
 PAGES = {
     'candidates': st.Page(candidates.render, title='Candidates', icon=':material/star:', url_path='candidates', default=True),
+    'scoreboard': st.Page(scoreboard.render, title='Scoreboard', icon=':material/scoreboard:', url_path='scoreboard'),
     'screener': st.Page(screener.render, title='Screener', icon=':material/filter_alt:', url_path='screener'),
     'journal': st.Page(journal.render, title='Journal', icon=':material/edit_note:', url_path='journal'),
     'reports': st.Page(reports.render, title='Add a report', icon=':material/upload_file:', url_path='reports'),
@@ -44,23 +45,50 @@ with st.sidebar:
         threading.Timer(1.0, lambda: os.kill(os.getpid(), signal.SIGTERM)).start()
     st.caption(core.DISCLAIMER)
 
+@st.fragment(run_every=5)
+def first_download_banner():
+    """While the first start fetches prices: where it is, and the whole page refreshes once it is done."""
+    import jobs
+    s = jobs.running()
+    if s and s.get('kind') == 'first':
+        st.info(f"Getting today's prices and the second-source figures from Yahoo Finance: step {s['step']} of "
+                f"{s['steps']}, {s['step_name']}. This happens only the first time and takes a while; the screener "
+                'shows the figures that came with the program meanwhile. Analysing a company waits until it is done.',
+                icon=':material/download:')
+        st.session_state['first_seen'] = True
+    elif st.session_state.pop('first_seen', False):
+        from views import data
+        data.changed()
+        st.rerun(scope='app')
+    elif core.first_download_needed():
+        st.warning('Getting today\'s prices stopped before it finished (no internet?). It starts again the next time '
+                   'you open the program, or now:', icon=':material/wifi_off:')
+        if st.button('Try again', key='first_retry'):
+            jobs.start('first')
+            st.rerun(scope='app')
+
+
 # once per session: a backup a day, and after an update, your own reports are read into the new version's screener
 if not st.session_state.get('started'):
     st.session_state['started'] = True
     core.backup_if_due()
     version = core.program_version()
-    if core.settings().get('program_version') != version:
-        if os.listdir(core.USER_REPORTS):
-            import jobs
-            jobs.start('after_restore')
-        core.save_setting(program_version=version)
+    import jobs
+    if core.first_download_needed() and not jobs.running() and not os.environ.get('STOCK_NO_FIRST_DOWNLOAD'):
+        jobs.start('first')  # it reads your own reports in too
+    elif core.settings().get('program_version') != version and os.listdir(core.USER_REPORTS):
+        jobs.start('after_restore')
+    core.save_setting(program_version=version)
 
 # The first start counts as a weekly check (the data in the download is fresh, and a company you add is analysed
 # there and then).
 if 'last_check' not in core.settings():
     core.save_setting(last_check=date.today().isoformat())
+if not core.data_ready():
+    first_download_banner()
 # the weekly check: once per session, when a week has passed and something is being followed
-if not st.session_state.get('checked') and core.weekly_check_due() and any(e['mode'] == 'watch' for e in core.watchlist()):
+if (not st.session_state.get('checked') and core.data_ready() and core.weekly_check_due()
+        and any(e['mode'] == 'watch' for e in core.watchlist())):
     st.session_state['checked'] = True
     with st.status('Weekly check: updating the companies you follow...', expanded=False) as box:
         out, err = core.run_weekly_check()

@@ -1,7 +1,7 @@
 """Long data jobs (fresh prices, the full refresh) run here, apart from the browser page, so they finish even when you
 switch pages or close the tab. Progress goes to cache/job.json and cache/job.log; the Update data page reads them.
 
-Run by the program: python -X utf8 -I app/jobs.py prices|full
+Run by the program: python -X utf8 -I app/jobs.py prices|full|after_restore|first
 """
 import json
 import os
@@ -12,7 +12,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import core  # noqa: E402
 
 JOBS = {'prices': ('Refreshing prices', core.PRICES_ONLY), 'full': ('Full refresh', core.FULL),
-        'after_restore': ('Reading your own reports', core.AFTER_REPORT)}
+        'after_restore': ('Reading your own reports', core.AFTER_REPORT),
+        'first': ('Getting today\'s prices (first start)', core.FIRST_DOWNLOAD)}
 STATUS, LOG = os.path.join(core.CACHE, 'job.json'), os.path.join(core.CACHE, 'job.log')
 
 
@@ -50,6 +51,9 @@ def start(kind):
 
 def main(kind):
     label, keys = JOBS[kind]
+    os.makedirs(core.CACHE, exist_ok=True)
+    if kind == 'first' and os.path.isdir(core.USER_REPORTS) and os.listdir(core.USER_REPORTS):  # your own reports are read in on the way
+        keys = keys[:2] + ['extract_eu'] + keys[2:]
     st = {'kind': kind, 'label': label, 'state': 'running', 'step': 0, 'steps': len(keys),
           'step_name': '', 'started': time.strftime('%Y-%m-%d %H:%M'), 'finished': None}
 

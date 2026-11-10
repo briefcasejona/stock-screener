@@ -22,7 +22,7 @@ def render():
     if entries:
         st.dataframe(pd.DataFrame([{
             'Date': e['date'], 'Company': e['company'], 'Decision': e['decision'],
-            'Price': core.money(e['price'], e['currency']), 'Base value': core.money(e['base'], e['currency']),
+            'Price': core.money(e['price'], e['currency']), 'Base value': core.money(e.get('base'), e['currency']),
             'Growth the price assumed': core.pct(e.get('implied_growth')), 'Why': e['why'],
             'What would change my mind': e.get('change_mind', ''), 'Next check': e.get('next_check', ''),
             'By': e.get('author', '')} for e in entries]), hide_index=True,

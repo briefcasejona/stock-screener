@@ -22,6 +22,18 @@ normal browser, and **Quit the program** in the sidebar stops it.
 Your journal, the companies you follow and the reports you add live in the folder `StockScreener data` in your
 home folder, apart from the program, so updating or uninstalling never touches them.
 
+## Where the data comes from
+
+- **Company figures:** SEC EDGAR filings (US) and ESEF annual reports via filings.xbrl.org (Europe). Company
+  identifiers come from GLEIF. The download includes the yearly figures and screening results drawn from these
+  sources.
+- **Prices, exchange rates and a second opinion on the figures:** Yahoo Finance. These are not part of the
+  download. Each copy of the app fetches them itself the first time it starts. That takes a while, and the screener
+  shows the results that come with the download meanwhile.
+- **The S&P 500 list** (`screener/raw/sp500_constituents.csv`) is taken from Wikipedia's "List of S&P 500
+  companies" and is available under the
+  [Creative Commons Attribution-ShareAlike 4.0](https://creativecommons.org/licenses/by-sa/4.0/) license.
+
 ## How it is built
 
 `.github/workflows/build.yml` builds the Windows installer (PyInstaller and Inno Setup) and the Mac app on GitHub's

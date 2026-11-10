@@ -58,6 +58,7 @@ jobs:
       VERSION: ${{ needs.version.outputs.version }}
       APP_VERSION_SHORT: ${{ needs.version.outputs.version }}
       PYTHONUTF8: '1'
+      STOCK_NO_FIRST_DOWNLOAD: '1'  # the tests don't fetch ~700 prices from Yahoo in the background
     steps:
       - uses: actions/checkout@v5
 

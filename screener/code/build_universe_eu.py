@@ -162,7 +162,8 @@ def main():
             cik = hits[0]['cik']
         out.append({'ticker': y['symbol'], 'name': r['Name'], 'isin': r['ISIN'], 'country': l.get('country', ''),
                     'sector': y['sector'], 'industry': y['industry'], 'yahoo': y['symbol'], 'lei': l.get('lei', ''),
-                    'cik': cik, 'source': 'sec' if cik else ('esef' if l.get('lei') else 'none')})
+                    'cik': cik, 'source': 'sec' if cik else ('esef' if l.get('lei') else 'none'),
+                    'display_name': (y.get('name') or '').replace('|', '').strip()})
     with open(f'{BASE}/raw/universe_eu.csv', 'w', newline='') as fh:
         w = csv.DictWriter(fh, fieldnames=list(out[0]))
         w.writeheader()

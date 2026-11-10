@@ -63,7 +63,7 @@ def refresh(ticker, rerun=True):
     replace_rows(f'{BASE}/raw/prices_{region}.csv', ticker, [{'ticker': ticker, 'yahoo': u['yahoo'], **q}],
                  ['ticker', 'yahoo', 'price', 'currency', 'date'])
     splits_path = f'{BASE}/raw/splits_{region}.json'
-    splits_all = json.load(open(splits_path))
+    splits_all = json.load(open(splits_path)) if os.path.exists(splits_path) else {}
     splits_all[ticker] = splits
     json.dump(splits_all, open(splits_path, 'w'), indent=0)
 
@@ -87,7 +87,7 @@ def refresh(ticker, rerun=True):
     replace_rows(f'{BASE}/output/figures_{region}.csv', ticker, rows)
 
     cache_path = f'{BASE}/raw/yahoo_statements_{region}.json'
-    cache = json.load(open(cache_path))
+    cache = json.load(open(cache_path)) if os.path.exists(cache_path) else {}
     try:
         cache[ticker] = crosscheck_yahoo.fetch(u['yahoo'])
     except Exception as e:  # the second source is optional; the old copy stays

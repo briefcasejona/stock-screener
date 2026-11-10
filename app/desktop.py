@@ -48,6 +48,33 @@ def version():
         return 'development'
 
 
+# What the program downloaded itself (prices, exchange rates, second-source figures; they are not in the download) and
+# its download caches: a newer version takes them over from the previous one, so it need not fetch them again.
+CARRIED = ['screener/raw/prices_us.csv', 'screener/raw/prices_eu.csv', 'screener/raw/splits_us.json',
+           'screener/raw/splits_eu.json', 'screener/raw/fx.json', 'screener/raw/yahoo_statements_us.json',
+           'screener/raw/yahoo_statements_eu.json', 'screener/output/crosscheck_us.csv',
+           'screener/output/crosscheck_eu.csv', 'cache/sec', 'cache/esef']
+
+
+def carry_downloads(new_root):
+    folder = os.path.join(BASE, 'program')
+    old = [os.path.join(folder, d) for d in os.listdir(folder) if os.path.exists(os.path.join(folder, d, '.complete'))]
+    if not old:
+        return
+    prev = max(old, key=lambda d: os.path.getmtime(os.path.join(d, '.complete')))
+    for rel in CARRIED:
+        src, dst = os.path.join(prev, rel), os.path.join(new_root, rel)
+        if os.path.exists(src) and not os.path.exists(dst):
+            try:
+                os.makedirs(os.path.dirname(dst), exist_ok=True)
+                if os.path.isdir(src):  # the caches are big: moved, as the old folder is removed next anyway
+                    shutil.move(src, dst)
+                else:
+                    shutil.copy2(src, dst)
+            except OSError as e:  # fetched again on the first start instead
+                print('could not take over', rel, e)
+
+
 def program_root():
     """The installed app's files can't be written to, and the screener writes its results next to its data. So each
     version copies its screener and playbook folders here once; the previous version's copy is removed.
@@ -61,6 +88,7 @@ def program_root():
         shutil.rmtree(tmp, ignore_errors=True)
         for part in ('screener', 'playbook'):
             shutil.copytree(os.path.join(BUNDLE, part), os.path.join(tmp, part))
+        carry_downloads(tmp)
         open(os.path.join(tmp, '.complete'), 'w').close()
         shutil.rmtree(root, ignore_errors=True)
         os.replace(tmp, root)

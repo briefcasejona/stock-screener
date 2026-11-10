@@ -40,10 +40,14 @@ def analyse_buttons(r):
             st.switch_page(st.session_state['pages']['candidates'])
         return
     st.markdown('**Analyse it:** reverse DCF, bear/base/bull values and 10 years of history. It then shows in Candidates.')
+    ready = core.data_ready()
+    if not ready:
+        st.caption(core.NOT_READY)
     a, b = st.columns(2)
-    follow = a.button('Analyse and follow', type='primary', use_container_width=True,
+    follow = a.button('Analyse and follow', type='primary', use_container_width=True, disabled=not ready,
                       help='The weekly check keeps it up to date and notes new reports and price moves in the journal.')
-    once = b.button('One-time analysis', use_container_width=True, help='Analysed once, as of today; never updated.')
+    once = b.button('One-time analysis', use_container_width=True, disabled=not ready,
+                    help='Analysed once, as of today; never updated.')
     if follow or once:
         with st.spinner(f"Analysing {r['company']} (downloads 12 years of prices)..."):
             _, err = core.wl('add', ticker=r['ticker'], once=once)

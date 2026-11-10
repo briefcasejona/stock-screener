@@ -40,7 +40,11 @@ def main():
                 if not h.empty:
                     got[y] = h
         todo = [y for y in todo if y not in got]
-    prices, splits = [], {}
+    prices = []
+    # the split history from before: kept for a company whose history Yahoo doesn't hand over this time
+    old_path = f'{BASE}/raw/splits_{region}.json'
+    splits = json.load(open(old_path)) if os.path.exists(old_path) else {}
+    no_splits = []
     for t, y in ymap.items():
         if y in got:
             h = got[y]
@@ -48,8 +52,17 @@ def main():
     # split history (whole period) and currency, one call per company
     for i, p in enumerate(prices):
         tk = yf.Ticker(p['yahoo'])
-        s = net.patient(lambda: tk.splits)
-        splits[p['ticker']] = [[str(d.date()), float(r)] for d, r in s.items() if d.year >= 2014]
+        s = None
+        for wait in (0, 5, 20):  # when Yahoo throttles, yfinance can hand back nothing instead of an error
+            time.sleep(wait)
+            s = net.patient(lambda: tk.splits)
+            if s is not None:
+                break
+        if s is not None:
+            splits[p['ticker']] = [[str(d.date()), float(r)] for d, r in s.items() if d.year >= 2014]
+        else:
+            splits.setdefault(p['ticker'], [])
+            no_splits.append(p['ticker'])
         try:
             p['currency'] = tk.fast_info['currency']
         except Exception:
@@ -61,6 +74,8 @@ def main():
         w.writeheader()
         w.writerows(prices)
     json.dump(splits, open(f'{BASE}/raw/splits_{region}.json', 'w'), indent=0)
+    if no_splits:
+        print(f'no split history from Yahoo this time (the previous one is kept): {no_splits}')
     print(f'{len(prices)} of {len(universe)} prices; missing {[t for t in ymap if t not in {p["ticker"] for p in prices}]}')
 
 

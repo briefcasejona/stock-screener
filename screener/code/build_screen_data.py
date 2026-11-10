@@ -26,13 +26,14 @@ def num(x, nd=4):
 
 
 def display_names():
-    """Readable company names: Yahoo's long name for Europe (the ETF list is in capitals), stray marks removed."""
+    """Readable company names for Europe (the ETF list is in capitals): the display_name column of universe_eu.csv
+    (build_universe_eu.py), else Yahoo's long name when its search results are at hand, else the list's name."""
     names = {}
     ys_path, u_path = f'{BASE}/raw/yahoo_search_eu.json', f'{BASE}/raw/universe_eu.csv'
-    if os.path.exists(ys_path) and os.path.exists(u_path):
-        ys = json.load(open(ys_path))
+    if os.path.exists(u_path):
+        ys = json.load(open(ys_path)) if os.path.exists(ys_path) else {}
         for u in localdata.eu_universe():
-            names[u['ticker']] = ys.get(u['isin'], {}).get('name') or u['name']
+            names[u['ticker']] = u.get('display_name') or ys.get(u.get('isin', ''), {}).get('name') or u['name']
     return names
 
 

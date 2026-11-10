@@ -90,7 +90,9 @@ def render():
     st.write('For every company you follow: fresh figures and price, the analysis re-run when a new annual report is '
              'out, and a journal note when the price crosses a buy-below price. It runs by itself when you open the '
              'program and a week has passed.')
-    if st.button('Run the weekly check now', type='primary'):
+    if not core.data_ready():
+        st.caption(core.NOT_READY)
+    if st.button('Run the weekly check now', type='primary', disabled=not core.data_ready()):
         with st.spinner('Checking the companies you follow...'):
             out, err = core.run_weekly_check()
         data.changed()

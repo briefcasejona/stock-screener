@@ -1,0 +1,282 @@
+{
+ "price": 1496.0,
+ "price_date": "2026-10-19",
+ "history": [
+  {
+   "year": 2016,
+   "revenue_m": 6875.1,
+   "operating_margin": 0.2557780977731233,
+   "net_income_m": 1557.8,
+   "eps_diluted": 3.64,
+   "fcf_m": 1341.216,
+   "fcf_per_share": 3.1358802899228433,
+   "fcf_to_net_income": 0.860968031839774,
+   "year_end_price": 106.6500015258789,
+   "pe_year_end": 29.29945096864805
+  },
+  {
+   "year": 2017,
+   "revenue_m": 8962.7,
+   "operating_margin": 0.272205920091044,
+   "net_income_m": 2066.7,
+   "eps_diluted": 4.79,
+   "fcf_m": 1460.3,
+   "fcf_per_share": 3.3834569045412417,
+   "fcf_to_net_income": 0.7065853776551991,
+   "year_end_price": 145.14999389648438,
+   "pe_year_end": 30.302712713253523
+  },
+  {
+   "year": 2018,
+   "revenue_m": 10944.0,
+   "operating_margin": 0.2709521198830409,
+   "net_income_m": 2591.6,
+   "eps_diluted": 6.08,
+   "fcf_m": 2463.2,
+   "fcf_per_share": 5.776735459662289,
+   "fcf_to_net_income": 0.9504553171785769,
+   "year_end_price": 137.16000366210938,
+   "pe_year_end": 22.55921112863641
+  },
+  {
+   "year": 2019,
+   "revenue_m": 11820.0,
+   "operating_margin": 0.2361082910321489,
+   "net_income_m": 2592.3,
+   "eps_diluted": 6.15,
+   "fcf_m": 2390.5,
+   "fcf_per_share": 5.670066413662239,
+   "fcf_to_net_income": 0.9221540716738031,
+   "year_end_price": 263.70001220703125,
+   "pe_year_end": 42.87805076537093
+  },
+  {
+   "year": 2020,
+   "revenue_m": 13978.5,
+   "operating_margin": 0.28983796544693635,
+   "net_income_m": 3553.7,
+   "eps_diluted": 8.48,
+   "fcf_m": 3626.8,
+   "fcf_per_share": 8.653781913624433,
+   "fcf_to_net_income": 1.02057011002617,
+   "year_end_price": 397.54998779296875,
+   "pe_year_end": 46.88089478690669
+  },
+  {
+   "year": 2021,
+   "revenue_m": 18611.0,
+   "operating_margin": 0.36269410563645155,
+   "net_income_m": 5883.2,
+   "eps_diluted": 14.34,
+   "fcf_m": 9905.5,
+   "fcf_per_share": 24.13620857699805,
+   "fcf_to_net_income": 1.6836925482730487,
+   "year_end_price": 706.7000122070312,
+   "pe_year_end": 49.281730279430356
+  },
+  {
+   "year": 2022,
+   "revenue_m": 21173.4,
+   "operating_margin": 0.3070220181926379,
+   "net_income_m": 5624.2,
+   "eps_diluted": 14.13,
+   "fcf_m": 7167.5,
+   "fcf_per_share": 18.008793969849247,
+   "fcf_to_net_income": 1.2744034707158352,
+   "year_end_price": 503.79998779296875,
+   "pe_year_end": 35.6546346633382
+  },
+  {
+   "year": 2023,
+   "revenue_m": 27558.5,
+   "operating_margin": 0.3281129234174574,
+   "net_income_m": 7839.0,
+   "eps_diluted": 19.89,
+   "fcf_m": 3247.2,
+   "fcf_per_share": 8.23953311342299,
+   "fcf_to_net_income": 0.4142365097588978,
+   "year_end_price": 681.7000122070312,
+   "pe_year_end": 34.27350488723133
+  },
+  {
+   "year": 2024,
+   "revenue_m": 28262.9,
+   "operating_margin": 0.31923829472559434,
+   "net_income_m": 7571.6,
+   "eps_diluted": 19.24,
+   "fcf_m": 9083.1,
+   "fcf_per_share": 23.076981707317074,
+   "fcf_to_net_income": 1.1996275556025147,
+   "year_end_price": 678.7000122070312,
+   "pe_year_end": 35.27546840992886
+  },
+  {
+   "year": 2025,
+   "revenue_m": 32667.3,
+   "operating_margin": 0.34595451720833986,
+   "net_income_m": 9609.4,
+   "eps_diluted": 24.71,
+   "fcf_m": 11027.3,
+   "fcf_per_share": 28.355104139881718,
+   "fcf_to_net_income": 1.1475534372593503,
+   "year_end_price": 921.4000244140625,
+   "pe_year_end": 37.28854813492766
+  }
+ ],
+ "growth": {
+  "revenue_cagr_2016_2025": 0.18906008952127085,
+  "eps_cagr_2016_2025": 0.23714054460619227,
+  "fcf_ps_cagr_3yavg_2017_to_2024": 0.2531417521553052,
+  "shares_change_per_year_2016_2025": -0.010511010722632608
+ },
+ "quality": {
+  "rows": [
+   {
+    "year": 2016,
+    "roic": 0.16551246220235954,
+    "gross_margin": 0.45749152739596516,
+    "net_debt_m": -737.4
+   },
+   {
+    "year": 2017,
+    "roic": 0.18566675678204475,
+    "gross_margin": 0.4485478706193446,
+    "net_debt_m": 766.3
+   },
+   {
+    "year": 2018,
+    "roic": 0.2454477328393725,
+    "gross_margin": 0.45953947368421055,
+    "net_debt_m": -1006.1
+   },
+   {
+    "year": 2019,
+    "roic": 0.23650269779723737,
+    "gross_margin": 0.44668358714043993,
+    "net_debt_m": -1609.8
+   },
+   {
+    "year": 2020,
+    "roic": 0.3122952152516307,
+    "gross_margin": 0.4862610437457524,
+    "net_debt_m": -2673.4
+   },
+   {
+    "year": 2021,
+    "roic": 0.8020164844529438,
+    "gross_margin": 0.5270538928590618,
+    "net_debt_m": -3006.2
+   },
+   {
+    "year": 2022,
+    "roic": 0.9699571114850937,
+    "gross_margin": 0.5053557765876052,
+    "net_debt_m": -3115.6
+   },
+   {
+    "year": 2023,
+    "roic": 0.6874734604039978,
+    "gross_margin": 0.5129488179690477,
+    "net_debt_m": -2378.5
+   },
+   {
+    "year": 2024,
+    "roic": 0.7047500247709706,
+    "gross_margin": 0.512757006535069,
+    "net_debt_m": -8053.7
+   },
+   {
+    "year": 2025,
+    "roic": 0.8712955098861913,
+    "gross_margin": 0.5282958799778371,
+    "net_debt_m": -8931.0
+   }
+  ],
+  "roic_median": 0.4998843378278143,
+  "roic_min": 0.16551246220235954,
+  "fcf_to_net_income": 1.0577448327350454,
+  "net_debt_to_fcf_2025": -0.8098990686750156,
+  "gross_margin_median": 0.4958084101666788,
+  "gross_margin_min": 0.44668358714043993,
+  "shares_change_per_year": -0.010511010722632608
+ },
+ "ltm": {
+  "revenue": 39473.5,
+  "net_income": 13474.3,
+  "eps_diluted": 35.0,
+  "operating_cash_flow": 22725.3,
+  "capex_ppe": 1563.0,
+  "capex_intangibles": 162.89999999999998,
+  "gain_equity_investments": 509.7,
+  "fcf": 20999.399999999998
+ },
+ "ltm_eps": 35.0,
+ "pe_ltm": 42.74285714285714,
+ "pe_fy2025": 60.54229057061918,
+ "pe_median_2016_2025": 35.46505153663353,
+ "pe_min": 22.55921112863641,
+ "pe_max": 49.281730279430356,
+ "shares_now": 383500000.0,
+ "cash_now": 12735099999.999998,
+ "debt_now": 2697300000.0,
+ "net_cash_ps": 26.174185136896995,
+ "contract_liabilities": {
+  "2026Q2": 3570300000.0,
+  "2026Q3": 9300600000.0
+ },
+ "fcf0": 29.431344194156388,
+ "implied_growth": 0.1778748966987892,
+ "scenarios": {
+  "bear": {
+   "value": 526.6931003022961,
+   "stage1": 241.42806052963562,
+   "terminal": 259.0908546357635,
+   "net_cash": 26.174185136896995,
+   "terminal_share": 0.5176444821274049,
+   "fcf_year10": 52.707054956264884,
+   "g": 0.06,
+   "r": 0.1,
+   "g_t": 0.02
+  },
+  "base": {
+   "value": 977.8145950227386,
+   "stage1": 342.7545987909005,
+   "terminal": 608.8858110949411,
+   "net_cash": 26.174185136896995,
+   "terminal_share": 0.6398276121628577,
+   "fcf_year10": 91.40928763458244,
+   "g": 0.12,
+   "r": 0.09,
+   "g_t": 0.025
+  },
+  "bull": {
+   "value": 2146.8446045801074,
+   "stage1": 521.446130660264,
+   "terminal": 1599.2242887829464,
+   "net_cash": 26.174185136896995,
+   "terminal_share": 0.754112602373559,
+   "fcf_year10": 167.6021987038495,
+   "g": 0.19,
+   "r": 0.08,
+   "g_t": 0.03
+  }
+ },
+ "fcf_margin_2016_2025": 0.28593665366534443,
+ "implied_revenue_y10": 202907124408.52002,
+ "peers_trailing_pe_yahoo_unchecked": {
+  "AMAT": 36.51639,
+  "LRCX": 48.255207,
+  "KLAC": 46.650272,
+  "8035.T": 38.20457,
+  "ASML.AS": 42.767296
+ },
+ "fair_pe_base_on_ltm_eps": 27.93755985779253,
+ "fcf0_alt": 19.890539653540596,
+ "implied_growth_alt": 0.2308737979391159,
+ "scenarios_alt": {
+  "bear": 364.43910649992404,
+  "base": 669.3198458948673,
+  "bull": 1459.3835822938527
+ },
+ "buy_below": 526.6931003022961
+}

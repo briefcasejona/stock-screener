@@ -1,0 +1,11 @@
+[
+ {
+  "ticker": "ASML.AS",
+  "company": "ASML",
+  "mode": "once",
+  "added": "2026-10-19",
+  "analysed": "2026-10-19",
+  "worked_example": true,
+  "fcf_basis": "normalised"
+ }
+]

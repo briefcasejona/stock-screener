@@ -1,0 +1,19 @@
+[server]
+fileWatcherType = "none"
+runOnSave = false
+maxUploadSize = 300
+# Only answer when the browser addresses this computer by name: a web page elsewhere that tries to reach the
+# program through a trick address ("DNS rebinding") is refused.
+allowedHosts = ["127.0.0.1", "localhost"]
+enableXsrfProtection = true
+
+[browser]
+gatherUsageStats = false
+
+[client]
+toolbarMode = "minimal"
+
+[theme]
+base = "light"
+primaryColor = "#0a66c2"
+font = "sans-serif"

@@ -1,0 +1,108 @@
+{
+ "ticker": "SIE.DE",
+ "period_end": "2025-09-30",
+ "currency": "EUR",
+ "scale": 1000000,
+ "share_scale": 1000,
+ "columns": [
+  "2025",
+  "2024"
+ ],
+ "items": {
+  "Revenue": [
+   5,
+   "^\\s*Revenue\\s"
+  ],
+  "CostOfSales": [
+   5,
+   "^\\s*Cost of sales"
+  ],
+  "GrossProfit": [
+   5,
+   "^\\s*Gross profit"
+  ],
+  "ProfitLossBeforeTax": [
+   5,
+   "before income taxes"
+  ],
+  "IncomeTaxExpenseContinuingOperations": [
+   5,
+   "^\\s*Income tax expenses"
+  ],
+  "FinanceCosts": [
+   5,
+   "^\\s*Interest expenses"
+  ],
+  "ProfitLossAttributableToOwnersOfParent": [
+   5,
+   "^\\s*Shareholders of Siemens AG",
+   null,
+   0
+  ],
+  "DilutedEarningsLossPerShare": [
+   5,
+   "^\\s*Net income\\s",
+   null,
+   2
+  ],
+  "AdjustedWeightedAverageShares": [
+   41,
+   "Weighted average shares outstanding - diluted"
+  ],
+  "CashAndCashEquivalents": [
+   6,
+   "^\\s*Cash and cash equivalents\\s"
+  ],
+  "EquityAttributableToOwnersOfParent": [
+   6,
+   "Total equity attributable to shareholders"
+  ],
+  "NoncontrollingInterests": [
+   6,
+   "^\\s*Non-controlling interests\\s"
+  ],
+  "CurrentBorrowingsAndCurrentPortionOfNoncurrentBorrowings": [
+   6,
+   "Short-term debt and current maturities"
+  ],
+  "NoncurrentPortionOfNoncurrentBorrowings": [
+   6,
+   "^\\s*Long-term debt\\s"
+  ],
+  "Assets": [
+   6,
+   "^\\s*Total assets"
+  ],
+  "EquityAndLiabilities": [
+   6,
+   "^\\s*Total liabilities and equity"
+  ],
+  "CashFlowsFromUsedInOperatingActivities": [
+   7,
+   "operating activities \u2013 continuing and discontinued"
+  ],
+  "PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities": [
+   7,
+   "Additions to intangible assets and property"
+  ],
+  "CashFlowsFromUsedInInvestingActivities": [
+   7,
+   "investing activities \u2013 continuing and discontinued"
+  ],
+  "CashFlowsFromUsedInFinancingActivities": [
+   7,
+   "financing activities \u2013 continuing and discontinued"
+  ],
+  "EffectOfExchangeRateChangesOnCashAndCashEquivalents": [
+   7,
+   "Effect of changes in exchange rates"
+  ],
+  "CashFlowStatementClosingCash": [
+   7,
+   "^\\s*Cash and cash equivalents at end of period",
+   null,
+   0
+  ]
+ },
+ "_note": "Worked example (tested 19 Oct 2026) for Siemens consolidated_financial_statement.pdf, FY2025. All checks passed."
+}

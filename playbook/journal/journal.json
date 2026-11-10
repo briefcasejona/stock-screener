@@ -1,0 +1,18 @@
+[
+ {
+  "id": "2026-10-19-ASML",
+  "date": "2026-10-19",
+  "company": "ASML",
+  "price": 1496.0,
+  "currency": "EUR",
+  "decision": "Wait",
+  "implied_growth": 0.1779,
+  "bear": 526.7,
+  "base": 977.8,
+  "bull": 2146.8,
+  "why": "Great business, priced for its best decade to repeat. Buy-below is €527. The index fund gets this month's money.",
+  "change_mind": "Firm orders for 2029–2030 (raise the bear case); more limits on sales to China (lower it).",
+  "next_check": "Full-year 2026 results, late January 2027",
+  "author": "Worked example in the playbook"
+ }
+]

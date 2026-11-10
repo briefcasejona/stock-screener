@@ -1,0 +1,181 @@
+ticker,name,cik,fiscal_year,period_end,metric,ours,concept
+LULU,Lululemon Athletica,0001397187,2026,2026-02-01,revenue,11102600000.0,RevenueFromContractWithCustomerExcludingAssessedTax
+LULU,Lululemon Athletica,0001397187,2026,2026-02-01,net_income,1579183000.0,NetIncomeLoss
+LULU,Lululemon Athletica,0001397187,2026,2026-02-01,eps_diluted,13.26,EarningsPerShareDiluted
+LULU,Lululemon Athletica,0001397187,2026,2026-02-01,diluted_shares,119068000.0,WeightedAverageNumberOfDilutedSharesOutstanding
+LULU,Lululemon Athletica,0001397187,2026,2026-02-01,operating_cash_flow,1602477000.0,NetCashProvidedByUsedInOperatingActivities
+LULU,Lululemon Athletica,0001397187,2026,2026-02-01,capex,680802000.0,PaymentsToAcquirePropertyPlantAndEquipment
+LULU,Lululemon Athletica,0001397187,2026,2026-02-01,equity,4961840000.0,
+LULU,Lululemon Athletica,0001397187,2026,2026-02-01,cash,1807202000.0,
+LULU,Lululemon Athletica,0001397187,2026,2026-02-01,short_term_investments,,
+LULU,Lululemon Athletica,0001397187,2026,2026-02-01,debt,0.0,
+ADBE,Adobe Inc.,0000796343,2025,2025-11-28,revenue,23769000000.0,Revenues
+ADBE,Adobe Inc.,0000796343,2025,2025-11-28,net_income,7130000000.0,NetIncomeLoss
+ADBE,Adobe Inc.,0000796343,2025,2025-11-28,eps_diluted,16.7,EarningsPerShareDiluted
+ADBE,Adobe Inc.,0000796343,2025,2025-11-28,diluted_shares,427000000.0,WeightedAverageNumberOfDilutedSharesOutstanding
+ADBE,Adobe Inc.,0000796343,2025,2025-11-28,operating_cash_flow,10031000000.0,NetCashProvidedByUsedInOperatingActivities
+ADBE,Adobe Inc.,0000796343,2025,2025-11-28,capex,179000000.0,PaymentsToAcquirePropertyPlantAndEquipment
+ADBE,Adobe Inc.,0000796343,2025,2025-11-28,equity,11623000000.0,
+ADBE,Adobe Inc.,0000796343,2025,2025-11-28,cash,5431000000.0,
+ADBE,Adobe Inc.,0000796343,2025,2025-11-28,short_term_investments,1164000000.0,
+ADBE,Adobe Inc.,0000796343,2025,2025-11-28,debt,6210000000.0,LongTermDebt + short-term
+ACN,Accenture,0001467373,2026,2026-08-31,revenue,74183445000.0,Revenues
+ACN,Accenture,0001467373,2026,2026-08-31,net_income,8367056000.0,NetIncomeLoss
+ACN,Accenture,0001467373,2026,2026-08-31,eps_diluted,13.56,EarningsPerShareDiluted
+ACN,Accenture,0001467373,2026,2026-08-31,diluted_shares,617498483.0,WeightedAverageNumberOfDilutedSharesOutstanding
+ACN,Accenture,0001467373,2026,2026-08-31,operating_cash_flow,12363346000.0,NetCashProvidedByUsedInOperatingActivities
+ACN,Accenture,0001467373,2026,2026-08-31,capex,742748000.0,PaymentsToAcquirePropertyPlantAndEquipment
+ACN,Accenture,0001467373,2026,2026-08-31,equity,31567256000.0,
+ACN,Accenture,0001467373,2026,2026-08-31,cash,12831471000.0,
+ACN,Accenture,0001467373,2026,2026-08-31,short_term_investments,6298000.0,
+ACN,Accenture,0001467373,2026,2026-08-31,debt,10111758000.0,non-current + current
+ALGN,Align Technology,0001097149,2025,2025-12-31,revenue,4034964000.0,RevenueFromContractWithCustomerExcludingAssessedTax
+ALGN,Align Technology,0001097149,2025,2025-12-31,net_income,410351000.0,NetIncomeLoss
+ALGN,Align Technology,0001097149,2025,2025-12-31,eps_diluted,5.65,EarningsPerShareDiluted
+ALGN,Align Technology,0001097149,2025,2025-12-31,diluted_shares,72588000.0,WeightedAverageNumberOfDilutedSharesOutstanding
+ALGN,Align Technology,0001097149,2025,2025-12-31,operating_cash_flow,593223000.0,NetCashProvidedByUsedInOperatingActivities
+ALGN,Align Technology,0001097149,2025,2025-12-31,capex,102445000.0,PaymentsToAcquirePropertyPlantAndEquipment
+ALGN,Align Technology,0001097149,2025,2025-12-31,equity,4049147000.0,
+ALGN,Align Technology,0001097149,2025,2025-12-31,cash,1094908000.0,
+ALGN,Align Technology,0001097149,2025,2025-12-31,short_term_investments,,
+ALGN,Align Technology,0001097149,2025,2025-12-31,debt,0.0,
+ELV,Elevance Health,0001156039,2025,2025-12-31,revenue,199125000000.0,Revenues
+ELV,Elevance Health,0001156039,2025,2025-12-31,net_income,5662000000.0,NetIncomeLoss
+ELV,Elevance Health,0001156039,2025,2025-12-31,eps_diluted,25.21,EarningsPerShareDiluted
+ELV,Elevance Health,0001156039,2025,2025-12-31,diluted_shares,224600000.0,WeightedAverageNumberOfDilutedSharesOutstanding
+ELV,Elevance Health,0001156039,2025,2025-12-31,operating_cash_flow,4290000000.0,NetCashProvidedByUsedInOperatingActivities
+ELV,Elevance Health,0001156039,2025,2025-12-31,capex,1116000000.0,PaymentsToAcquirePropertyPlantAndEquipment
+ELV,Elevance Health,0001156039,2025,2025-12-31,equity,43882000000.0,
+ELV,Elevance Health,0001156039,2025,2025-12-31,cash,9491000000.0,
+ELV,Elevance Health,0001156039,2025,2025-12-31,short_term_investments,25884000000.0,
+ELV,Elevance Health,0001156039,2025,2025-12-31,debt,32046000000.0,LongTermDebt + short-term
+DG,Dollar General,0000029534,2026,2026-01-30,revenue,42724369000.0,RevenueFromContractWithCustomerExcludingAssessedTax
+DG,Dollar General,0000029534,2026,2026-01-30,net_income,1512311000.0,NetIncomeLoss
+DG,Dollar General,0000029534,2026,2026-01-30,eps_diluted,6.85,EarningsPerShareDiluted
+DG,Dollar General,0000029534,2026,2026-01-30,diluted_shares,220814000.0,WeightedAverageNumberOfDilutedSharesOutstanding
+DG,Dollar General,0000029534,2026,2026-01-30,operating_cash_flow,3634500000.0,NetCashProvidedByUsedInOperatingActivities
+DG,Dollar General,0000029534,2026,2026-01-30,capex,1241162000.0,PaymentsToAcquireProductiveAssets
+DG,Dollar General,0000029534,2026,2026-01-30,equity,8511962000.0,
+DG,Dollar General,0000029534,2026,2026-01-30,cash,1138501000.0,
+DG,Dollar General,0000029534,2026,2026-01-30,short_term_investments,,
+DG,Dollar General,0000029534,2026,2026-01-30,debt,4648666000.0,DebtInstrumentCarryingAmount + short-term
+ZTS,Zoetis,0001555280,2025,2025-12-31,revenue,9467000000.0,Revenues
+ZTS,Zoetis,0001555280,2025,2025-12-31,net_income,2673000000.0,NetIncomeLoss
+ZTS,Zoetis,0001555280,2025,2025-12-31,eps_diluted,6.02,EarningsPerShareDiluted
+ZTS,Zoetis,0001555280,2025,2025-12-31,diluted_shares,443835000.0,WeightedAverageNumberOfDilutedSharesOutstanding
+ZTS,Zoetis,0001555280,2025,2025-12-31,operating_cash_flow,2904000000.0,NetCashProvidedByUsedInOperatingActivities
+ZTS,Zoetis,0001555280,2025,2025-12-31,capex,621000000.0,PaymentsToAcquirePropertyPlantAndEquipment
+ZTS,Zoetis,0001555280,2025,2025-12-31,equity,3331000000.0,
+ZTS,Zoetis,0001555280,2025,2025-12-31,cash,2312000000.0,
+ZTS,Zoetis,0001555280,2025,2025-12-31,short_term_investments,,
+ZTS,Zoetis,0001555280,2025,2025-12-31,debt,9150000000.0,DebtInstrumentCarryingAmount + short-term
+COR,Cencora,0001140859,2025,2025-09-30,revenue,321332819000.0,Revenues
+COR,Cencora,0001140859,2025,2025-09-30,net_income,1554169000.0,NetIncomeLoss
+COR,Cencora,0001140859,2025,2025-09-30,eps_diluted,7.96,EarningsPerShareDiluted
+COR,Cencora,0001140859,2025,2025-09-30,diluted_shares,195214000.0,WeightedAverageNumberOfDilutedSharesOutstanding
+COR,Cencora,0001140859,2025,2025-09-30,operating_cash_flow,3875120000.0,NetCashProvidedByUsedInOperatingActivities
+COR,Cencora,0001140859,2025,2025-09-30,capex,667981000.0,PaymentsToAcquirePropertyPlantAndEquipment
+COR,Cencora,0001140859,2025,2025-09-30,equity,1508019000.0,
+COR,Cencora,0001140859,2025,2025-09-30,cash,4356138000.0,
+COR,Cencora,0001140859,2025,2025-09-30,short_term_investments,,
+COR,Cencora,0001140859,2025,2025-09-30,debt,7660773000.0,LongTermDebt + short-term
+RMD,ResMed|,0000943819,2026,2026-06-30,revenue,5653443000.0,RevenueFromContractWithCustomerExcludingAssessedTax
+RMD,ResMed|,0000943819,2026,2026-06-30,net_income,1523293000.0,NetIncomeLoss
+RMD,ResMed|,0000943819,2026,2026-06-30,eps_diluted,10.43,EarningsPerShareDiluted
+RMD,ResMed|,0000943819,2026,2026-06-30,diluted_shares,146054000.0,WeightedAverageNumberOfDilutedSharesOutstanding
+RMD,ResMed|,0000943819,2026,2026-06-30,operating_cash_flow,1805829000.0,NetCashProvidedByUsedInOperatingActivities
+RMD,ResMed|,0000943819,2026,2026-06-30,capex,156285000.0,PaymentsToAcquirePropertyPlantAndEquipment
+RMD,ResMed|,0000943819,2026,2026-06-30,equity,6585393000.0,
+RMD,ResMed|,0000943819,2026,2026-06-30,cash,1469234000.0,
+RMD,ResMed|,0000943819,2026,2026-06-30,short_term_investments,,
+RMD,ResMed|,0000943819,2026,2026-06-30,debt,659950000.0,DebtInstrumentCarryingAmount + short-term
+PAYX,Paychex,0000723531,2026,2026-05-31,revenue,6512000000.0,Revenues
+PAYX,Paychex,0000723531,2026,2026-05-31,net_income,1760100000.0,NetIncomeLoss
+PAYX,Paychex,0000723531,2026,2026-05-31,eps_diluted,4.89,EarningsPerShareDiluted
+PAYX,Paychex,0000723531,2026,2026-05-31,diluted_shares,360000000.0,WeightedAverageNumberOfDilutedSharesOutstanding
+PAYX,Paychex,0000723531,2026,2026-05-31,operating_cash_flow,2556700000.0,NetCashProvidedByUsedInOperatingActivities
+PAYX,Paychex,0000723531,2026,2026-05-31,capex,234900000.0,PaymentsToAcquirePropertyPlantAndEquipment
+PAYX,Paychex,0000723531,2026,2026-05-31,equity,3735100000.0,
+PAYX,Paychex,0000723531,2026,2026-05-31,cash,1088200000.0,
+PAYX,Paychex,0000723531,2026,2026-05-31,short_term_investments,36300000.0,
+PAYX,Paychex,0000723531,2026,2026-05-31,debt,4600000000.0,DebtInstrumentCarryingAmount + short-term
+LMT,Lockheed Martin,0000936468,2025,2025-12-31,revenue,75048000000.0,Revenues
+LMT,Lockheed Martin,0000936468,2025,2025-12-31,net_income,5017000000.0,NetIncomeLoss
+LMT,Lockheed Martin,0000936468,2025,2025-12-31,eps_diluted,21.49,EarningsPerShareDiluted
+LMT,Lockheed Martin,0000936468,2025,2025-12-31,diluted_shares,233500000.0,WeightedAverageNumberOfDilutedSharesOutstanding
+LMT,Lockheed Martin,0000936468,2025,2025-12-31,operating_cash_flow,8557000000.0,NetCashProvidedByUsedInOperatingActivities
+LMT,Lockheed Martin,0000936468,2025,2025-12-31,capex,1649000000.0,PaymentsToAcquireProductiveAssets
+LMT,Lockheed Martin,0000936468,2025,2025-12-31,equity,6721000000.0,
+LMT,Lockheed Martin,0000936468,2025,2025-12-31,cash,4121000000.0,
+LMT,Lockheed Martin,0000936468,2025,2025-12-31,short_term_investments,,
+LMT,Lockheed Martin,0000936468,2025,2025-12-31,debt,22914000000.0,DebtInstrumentCarryingAmount + short-term
+ADP,Automatic Data Processing,0000008670,2026,2026-06-30,revenue,21947400000.0,Revenues
+ADP,Automatic Data Processing,0000008670,2026,2026-06-30,net_income,4413500000.0,NetIncomeLoss
+ADP,Automatic Data Processing,0000008670,2026,2026-06-30,eps_diluted,10.94,EarningsPerShareDiluted
+ADP,Automatic Data Processing,0000008670,2026,2026-06-30,diluted_shares,403300000.0,WeightedAverageNumberOfDilutedSharesOutstanding
+ADP,Automatic Data Processing,0000008670,2026,2026-06-30,operating_cash_flow,5441200000.0,NetCashProvidedByUsedInOperatingActivities
+ADP,Automatic Data Processing,0000008670,2026,2026-06-30,capex,196600000.0,PaymentsToAcquireOtherPropertyPlantAndEquipment
+ADP,Automatic Data Processing,0000008670,2026,2026-06-30,equity,6031200000.0,
+ADP,Automatic Data Processing,0000008670,2026,2026-06-30,cash,4230100000.0,
+ADP,Automatic Data Processing,0000008670,2026,2026-06-30,short_term_investments,0.0,
+ADP,Automatic Data Processing,0000008670,2026,2026-06-30,debt,5002800000.0,non-current + current
+ALLE,Allegion,0001579241,2025,2025-12-31,revenue,4067300000.0,RevenueFromContractWithCustomerExcludingAssessedTax
+ALLE,Allegion,0001579241,2025,2025-12-31,net_income,643800000.0,NetIncomeLoss
+ALLE,Allegion,0001579241,2025,2025-12-31,eps_diluted,7.44,EarningsPerShareDiluted
+ALLE,Allegion,0001579241,2025,2025-12-31,diluted_shares,86600000.0,WeightedAverageNumberOfDilutedSharesOutstanding
+ALLE,Allegion,0001579241,2025,2025-12-31,operating_cash_flow,783800000.0,NetCashProvidedByUsedInOperatingActivities
+ALLE,Allegion,0001579241,2025,2025-12-31,capex,98100000.0,PaymentsToAcquireProductiveAssets
+ALLE,Allegion,0001579241,2025,2025-12-31,equity,2067600000.0,
+ALLE,Allegion,0001579241,2025,2025-12-31,cash,356200000.0,
+ALLE,Allegion,0001579241,2025,2025-12-31,short_term_investments,,
+ALLE,Allegion,0001579241,2025,2025-12-31,debt,1990800000.0,DebtInstrumentCarryingAmount + short-term
+ROL,"Rollins, Inc.",0000084839,2025,2025-12-31,revenue,3761050000.0,RevenueFromContractWithCustomerExcludingAssessedTax
+ROL,"Rollins, Inc.",0000084839,2025,2025-12-31,net_income,526705000.0,NetIncomeLoss
+ROL,"Rollins, Inc.",0000084839,2025,2025-12-31,eps_diluted,1.09,EarningsPerShareDiluted
+ROL,"Rollins, Inc.",0000084839,2025,2025-12-31,diluted_shares,484147000.0,WeightedAverageNumberOfDilutedSharesOutstanding
+ROL,"Rollins, Inc.",0000084839,2025,2025-12-31,operating_cash_flow,678107000.0,NetCashProvidedByUsedInOperatingActivities
+ROL,"Rollins, Inc.",0000084839,2025,2025-12-31,capex,28086000.0,PaymentsToAcquirePropertyPlantAndEquipment
+ROL,"Rollins, Inc.",0000084839,2025,2025-12-31,equity,1374321000.0,
+ROL,"Rollins, Inc.",0000084839,2025,2025-12-31,cash,100004000.0,
+ROL,"Rollins, Inc.",0000084839,2025,2025-12-31,short_term_investments,,
+ROL,"Rollins, Inc.",0000084839,2025,2025-12-31,debt,623683000.0,DebtInstrumentCarryingAmount + short-term
+META,Meta Platforms,0001326801,2025,2025-12-31,revenue,200966000000.0,RevenueFromContractWithCustomerExcludingAssessedTax
+META,Meta Platforms,0001326801,2025,2025-12-31,net_income,60458000000.0,NetIncomeLoss
+META,Meta Platforms,0001326801,2025,2025-12-31,eps_diluted,23.49,EarningsPerShareDiluted
+META,Meta Platforms,0001326801,2025,2025-12-31,diluted_shares,2574000000.0,WeightedAverageNumberOfDilutedSharesOutstanding
+META,Meta Platforms,0001326801,2025,2025-12-31,operating_cash_flow,115800000000.0,NetCashProvidedByUsedInOperatingActivities
+META,Meta Platforms,0001326801,2025,2025-12-31,capex,69691000000.0,PaymentsToAcquirePropertyPlantAndEquipment
+META,Meta Platforms,0001326801,2025,2025-12-31,equity,217243000000.0,
+META,Meta Platforms,0001326801,2025,2025-12-31,cash,35873000000.0,
+META,Meta Platforms,0001326801,2025,2025-12-31,short_term_investments,45719000000.0,
+META,Meta Platforms,0001326801,2025,2025-12-31,debt,59000000000.0,DebtInstrumentCarryingAmount + short-term
+IDXX,Idexx Laboratories,0000874716,2025,2025-12-31,revenue,4303702000.0,RevenueFromContractWithCustomerExcludingAssessedTax
+IDXX,Idexx Laboratories,0000874716,2025,2025-12-31,net_income,1059464000.0,NetIncomeLoss
+IDXX,Idexx Laboratories,0000874716,2025,2025-12-31,eps_diluted,13.08,EarningsPerShareDiluted
+IDXX,Idexx Laboratories,0000874716,2025,2025-12-31,diluted_shares,81025000.0,WeightedAverageNumberOfDilutedSharesOutstanding
+IDXX,Idexx Laboratories,0000874716,2025,2025-12-31,operating_cash_flow,1181805000.0,NetCashProvidedByUsedInOperatingActivities
+IDXX,Idexx Laboratories,0000874716,2025,2025-12-31,capex,124676000.0,PaymentsToAcquirePropertyPlantAndEquipment
+IDXX,Idexx Laboratories,0000874716,2025,2025-12-31,equity,1605383000.0,
+IDXX,Idexx Laboratories,0000874716,2025,2025-12-31,cash,180070000.0,
+IDXX,Idexx Laboratories,0000874716,2025,2025-12-31,short_term_investments,,
+IDXX,Idexx Laboratories,0000874716,2025,2025-12-31,debt,848000000.0,LongTermDebt + short-term
+FIX,Comfort Systems USA,0001035983,2025,2025-12-31,revenue,9101641000.0,Revenues
+FIX,Comfort Systems USA,0001035983,2025,2025-12-31,net_income,1022558000.0,NetIncomeLoss
+FIX,Comfort Systems USA,0001035983,2025,2025-12-31,eps_diluted,28.88,EarningsPerShareDiluted
+FIX,Comfort Systems USA,0001035983,2025,2025-12-31,diluted_shares,35413000.0,WeightedAverageNumberOfDilutedSharesOutstanding
+FIX,Comfort Systems USA,0001035983,2025,2025-12-31,operating_cash_flow,1186356000.0,NetCashProvidedByUsedInOperatingActivities
+FIX,Comfort Systems USA,0001035983,2025,2025-12-31,capex,154903000.0,PaymentsToAcquirePropertyPlantAndEquipment
+FIX,Comfort Systems USA,0001035983,2025,2025-12-31,equity,2448774000.0,
+FIX,Comfort Systems USA,0001035983,2025,2025-12-31,cash,981898000.0,
+FIX,Comfort Systems USA,0001035983,2025,2025-12-31,short_term_investments,,
+FIX,Comfort Systems USA,0001035983,2025,2025-12-31,debt,145226000.0,total DebtAndCapitalLeaseObligations
+ANET,Arista Networks,0001596532,2025,2025-12-31,revenue,9005700000.0,RevenueFromContractWithCustomerExcludingAssessedTax
+ANET,Arista Networks,0001596532,2025,2025-12-31,net_income,3511400000.0,NetIncomeLoss
+ANET,Arista Networks,0001596532,2025,2025-12-31,eps_diluted,2.75,EarningsPerShareDiluted
+ANET,Arista Networks,0001596532,2025,2025-12-31,diluted_shares,1275700000.0,WeightedAverageNumberOfDilutedSharesOutstanding
+ANET,Arista Networks,0001596532,2025,2025-12-31,operating_cash_flow,4371900000.0,NetCashProvidedByUsedInOperatingActivities
+ANET,Arista Networks,0001596532,2025,2025-12-31,capex,119500000.0,PaymentsToAcquireProductiveAssets
+ANET,Arista Networks,0001596532,2025,2025-12-31,equity,12370500000.0,
+ANET,Arista Networks,0001596532,2025,2025-12-31,cash,1963900000.0,
+ANET,Arista Networks,0001596532,2025,2025-12-31,short_term_investments,8779100000.0,
+ANET,Arista Networks,0001596532,2025,2025-12-31,debt,0.0,

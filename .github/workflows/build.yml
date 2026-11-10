@@ -1,0 +1,217 @@
+# Builds the Windows installer and the Mac app, tests both, and (when asked) publishes them as a new version that
+# the installed apps pick up the next time they start. sync_repo.py copies this file to .github/workflows/build.yml.
+#   push to main             build and test only
+#   "Run workflow" button    build, test and publish a new version (version = date + run number)
+#   push of a tag v2026.11.10.1   build, test and publish that version
+name: Build the installers
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      release:
+        description: Publish this build as a new version (the app installs it the next time it starts)
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      release: ${{ steps.v.outputs.release }}
+    steps:
+      - id: v
+        shell: bash
+        env:
+          WANT_RELEASE: ${{ github.event_name == 'workflow_dispatch' && inputs.release }}
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            v="${GITHUB_REF_NAME#v}"; release=true
+            [[ "$v" =~ ^[0-9]+(\.[0-9]+)*$ ]] || { echo "tag must look like v2026.11.10.1"; exit 1; }
+          else
+            v="$(date -u +%Y.%-m.%-d).${GITHUB_RUN_NUMBER}"
+            release="${WANT_RELEASE:-false}"
+          fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "release=$release" >> "$GITHUB_OUTPUT"
+          echo "version $v, release $release"
+
+  build:
+    needs: version
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-15]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      APP_VERSION_SHORT: ${{ needs.version.outputs.version }}
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install the program's packages (exact versions, checked by fingerprint)
+        run: python -m pip install --require-hashes --only-binary ":all:" -r app/requirements.lock -r build/requirements-build.lock
+
+      - name: Build the program
+        shell: bash
+        run: |
+          printf '%s' "$VERSION" > app/VERSION
+          pyinstaller build/stock_screener.spec --noconfirm
+
+      - name: Where the built program is
+        id: paths
+        shell: bash
+        run: |
+          if [[ "$RUNNER_OS" == Windows ]]; then
+            echo "worker=dist/StockScreener/stockscreener-worker.exe" >> "$GITHUB_OUTPUT"
+          else
+            echo "worker=dist/Stock Screener.app/Contents/MacOS/stockscreener-worker" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Self-test (start, every page answers, run a script)
+        shell: bash
+        env:
+          STOCK_APP_BASE: ${{ runner.temp }}/base
+          STOCK_DATA: ${{ runner.temp }}/data
+        run: '"${{ steps.paths.outputs.worker }}" --selftest'
+
+      - name: Open every page in a real browser
+        shell: bash
+        env:
+          STOCK_APP_BASE: ${{ runner.temp }}/base
+          STOCK_DATA: ${{ runner.temp }}/data
+        run: python build/ui_check.py "${{ steps.paths.outputs.worker }}" "$RUNNER_TEMP/screens"
+
+      # ---------- Windows: the installer ----------
+      - name: Make the Windows installer
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress; if ($LASTEXITCODE) { exit 1 } }
+          & $iscc "/DAppVersion=$env:VERSION" build\installer.iss
+          if ($LASTEXITCODE) { exit 1 }
+          Get-Item dist\StockScreener-Setup.exe
+
+      - name: Install it silently and test the installed program
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          STOCK_DATA: ${{ runner.temp }}\data-installed
+        run: |
+          $p = Start-Process dist\StockScreener-Setup.exe -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/LOG=$env:RUNNER_TEMP\install.log" -Wait -PassThru
+          if ($p.ExitCode) { Get-Content "$env:RUNNER_TEMP\install.log" -Tail 30; exit 1 }
+          $app = "$env:LOCALAPPDATA\Programs\Stock Screener"
+          if (-not (Test-Path "$app\StockScreener.exe")) { "the program was not installed"; exit 1 }
+          if (-not (Test-Path "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Stock Screener.lnk")) { "no Start menu entry"; exit 1 }
+          & "$app\stockscreener-worker.exe" --selftest
+          if ($LASTEXITCODE) { exit 1 }
+
+      - name: Test an update (a newer release is found, downloaded, checked and installed)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          STOCK_DATA: ${{ runner.temp }}\data-installed
+          STOCK_UPDATE_API: http://127.0.0.1:8765/latest.json
+        run: |
+          $srv = "$env:RUNNER_TEMP\fake-release"
+          python build/fake_release.py dist\StockScreener-Setup.exe "$env:VERSION.1" $srv 8765
+          $server = Start-Process python -ArgumentList '-m','http.server','8765','--bind','127.0.0.1','--directory',$srv -PassThru -WindowStyle Hidden
+          foreach ($i in 1..30) { try { Invoke-WebRequest http://127.0.0.1:8765/latest.json -UseBasicParsing | Out-Null; break } catch { Start-Sleep 1 } }
+          # the updater as the installed program runs it, from the build folder so no installed file is in use
+          & dist\StockScreener\stockscreener-worker.exe --update-only
+          $code = $LASTEXITCODE
+          Stop-Process $server
+          $log = "$env:LOCALAPPDATA\StockScreener\install.log"
+          if (Test-Path $log) { Get-Content $log -Tail 5 }
+          if ($code) { "the update did not install"; exit 1 }
+          if (-not (Select-String -Path $log -Pattern 'Installation process succeeded' -Quiet)) { "the installer did not finish"; exit 1 }
+
+      # ---------- Mac: the disk image ----------
+      - name: Make the Mac disk image
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/dmg"
+          ditto "dist/Stock Screener.app" "$RUNNER_TEMP/dmg/Stock Screener.app"
+          ln -s /Applications "$RUNNER_TEMP/dmg/Applications"
+          hdiutil create -volname "Stock Screener" -srcfolder "$RUNNER_TEMP/dmg" -ov -format UDZO dist/StockScreener-mac.dmg
+          ls -la dist/StockScreener-mac.dmg
+
+      - name: Test an update (a newer release is found, downloaded, checked and installed)
+        if: runner.os == 'macOS'
+        shell: bash
+        env:
+          STOCK_APP_BASE: ${{ runner.temp }}/base-update
+          STOCK_DATA: ${{ runner.temp }}/data-update
+          STOCK_UPDATE_API: http://127.0.0.1:8765/latest.json
+        run: |
+          apps="$RUNNER_TEMP/apps"; mkdir -p "$apps"
+          ditto "dist/Stock Screener.app" "$apps/Stock Screener.app"
+          touch "$apps/Stock Screener.app/old-version-marker"
+          python build/fake_release.py dist/StockScreener-mac.dmg "$VERSION.1" "$RUNNER_TEMP/fake-release" 8765
+          python -m http.server 8765 --bind 127.0.0.1 --directory "$RUNNER_TEMP/fake-release" > /dev/null 2>&1 &
+          server=$!
+          for i in $(seq 30); do curl -sf -o /dev/null http://127.0.0.1:8765/latest.json && break; sleep 1; done
+          curl -sS -o /dev/null -w 'pretend release answers in %{time_total} s\n' http://127.0.0.1:8765/latest.json
+          "$apps/Stock Screener.app/Contents/MacOS/stockscreener-worker" --update-only
+          kill $server
+          test ! -e "$apps/Stock Screener.app/old-version-marker" || { echo "the app was not replaced"; exit 1; }
+          test ! -e "$apps/Stock Screener.app.old" || { echo "the old copy was left behind"; exit 1; }
+          STOCK_APP_BASE="$RUNNER_TEMP/base-update2" "$apps/Stock Screener.app/Contents/MacOS/stockscreener-worker" --selftest
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: installer-${{ runner.os }}
+          path: |
+            dist/StockScreener-Setup.exe
+            dist/StockScreener-mac.dmg
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: screenshots-${{ runner.os }}
+          path: ${{ runner.temp }}/screens
+          if-no-files-found: ignore
+
+  release:
+    needs: [version, build]
+    if: needs.version.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/download-artifact@v6
+        with:
+          pattern: installer-*
+          merge-multiple: true
+          path: out
+      - name: Publish the new version
+        shell: bash
+        run: |
+          cd out
+          sha256sum StockScreener-Setup.exe StockScreener-mac.dmg > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+          gh release create "v$VERSION" StockScreener-Setup.exe StockScreener-mac.dmg SHA256SUMS.txt \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Stock Screener $VERSION" \
+            --notes "Windows: download StockScreener-Setup.exe. Mac (Apple chip): download StockScreener-mac.dmg. An app that is already installed updates itself the next time it starts. Educational, not personal financial advice."

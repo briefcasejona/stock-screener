@@ -1,0 +1,181 @@
+ticker,fiscal_year,metric,ours,filing_value,diff_pct,verdict,where_found,note
+LULU,2026,revenue,11102600000.0,11102600000,0.000,agree,"Consolidated Statements of Operations and Comprehensive Income: ""Net revenue""",in thousands
+LULU,2026,net_income,1579183000.0,1579183000,0.000,agree,"Consolidated Statements of Operations and Comprehensive Income: ""Net income""",in thousands
+LULU,2026,eps_diluted,13.26,13.26,0.000,agree,"Consolidated Statements of Operations and Comprehensive Income: ""Diluted earnings per share""",
+LULU,2026,diluted_shares,119068000.0,119068000,0.000,agree,"Consolidated Statements of Operations and Comprehensive Income: ""Diluted weighted-average number of shares outstanding""",in thousands
+LULU,2026,operating_cash_flow,1602477000.0,1602477000,0.000,agree,"Consolidated Statements of Cash Flows: ""Net cash provided by operating activities""",
+LULU,2026,capex,680802000.0,680802000,0.000,agree,"Consolidated Statements of Cash Flows: ""Purchase of property and equipment""",
+LULU,2026,equity,4961840000.0,4961840000,0.000,agree,"Consolidated Balance Sheets: Stockholders' equity total (unlabeled total row; matches ""Total Stockholders' Equity"" in Statement of Stockholders' Equity)",
+LULU,2026,cash,1807202000.0,1807202000,0.000,agree,"Consolidated Balance Sheets: ""Cash and cash equivalents""",
+LULU,2026,short_term_investments,,0,0.000,agree,Consolidated Balance Sheets: no short-term investments line,none reported; ours is blank (treated as 0)
+LULU,2026,debt,0.0,0,0.000,agree,"Consolidated Balance Sheets (no debt lines); Note 13 Revolving Credit Facilities: ""no borrowings outstanding""","only lease liabilities on balance sheet, excluded by definition"
+ADBE,2025,revenue,23769000000.0,23769000000,0.000,agree,"Consolidated Statements of Income: ""Total revenue""",in millions
+ADBE,2025,net_income,7130000000.0,7130000000,0.000,agree,"Consolidated Statements of Income: ""Net income""",
+ADBE,2025,eps_diluted,16.7,16.70,0.000,agree,"Consolidated Statements of Income: ""Diluted net income per share""",
+ADBE,2025,diluted_shares,427000000.0,427000000,0.000,agree,"Consolidated Statements of Income: ""Shares used to compute diluted net income per share""",reported rounded to millions (427)
+ADBE,2025,operating_cash_flow,10031000000.0,10031000000,0.000,agree,"Consolidated Statements of Cash Flows: ""Net cash provided by operating activities""",
+ADBE,2025,capex,179000000.0,179000000,0.000,agree,"Consolidated Statements of Cash Flows: ""Purchases of property and equipment""",
+ADBE,2025,equity,11623000000.0,11623000000,0.000,agree,"Consolidated Balance Sheets: ""Total stockholders' equity""",
+ADBE,2025,cash,5431000000.0,5431000000,0.000,agree,"Consolidated Balance Sheets: ""Cash and cash equivalents""",
+ADBE,2025,short_term_investments,1164000000.0,1164000000,0.000,agree,"Consolidated Balance Sheets: ""Short-term investments""",
+ADBE,2025,debt,6210000000.0,6210000000,0.000,agree,"Consolidated Balance Sheets: current ""Debt"" (—) + long-term ""Debt"" (6,210)",no current debt at FY-end
+ACN,2026,revenue,74183445000.0,74183445000,0.000,agree,"Consolidated Income Statements: ""Revenues""",in thousands of USD
+ACN,2026,net_income,8367056000.0,8367056000,0.000,agree,"Consolidated Income Statements: ""NET INCOME ATTRIBUTABLE TO ACCENTURE PLC""","excludes NCI (total net income 8,522,882k)"
+ACN,2026,eps_diluted,13.56,13.56,0.000,agree,"Consolidated Income Statements: ""Earnings per Class A ordinary share: Diluted""",
+ACN,2026,diluted_shares,617498483.0,617498483,0.000,agree,"Consolidated Income Statements: ""Weighted average Class A ordinary shares: Diluted""",reported in actual shares
+ACN,2026,operating_cash_flow,12363346000.0,12363346000,0.000,agree,"Consolidated Cash Flows Statements: ""Net cash provided by (used in) operating activities""",
+ACN,2026,capex,742748000.0,742748000,0.000,agree,"Consolidated Cash Flows Statements: ""Purchases of property and equipment""",
+ACN,2026,equity,31567256000.0,31567256000,0.000,agree,"Consolidated Balance Sheets: ""Total Accenture plc shareholders' equity""","excludes NCI (total incl. NCI 32,724,354k)"
+ACN,2026,cash,12831471000.0,12831471000,0.000,agree,"Consolidated Balance Sheets: ""Cash and cash equivalents""",
+ACN,2026,short_term_investments,6298000.0,6298000,0.000,agree,"Consolidated Balance Sheets: ""Short-term investments""",
+ACN,2026,debt,10111758000.0,10111758000,0.000,agree,"Consolidated Balance Sheets: ""Current portion of long-term debt and bank borrowings"" (113,069) + ""Long-term debt"" (9,998,689)","lease liabilities shown separately, excluded"
+ALGN,2025,revenue,4034964000.0,4034964000,0.000,agree,"Consolidated Statements of Operations: ""Net revenues""",in thousands
+ALGN,2025,net_income,410351000.0,410351000,0.000,agree,"Consolidated Statements of Operations: ""Net income""",
+ALGN,2025,eps_diluted,5.65,5.65,0.000,agree,"Consolidated Statements of Operations: ""Net income per share: Diluted""",
+ALGN,2025,diluted_shares,72588000.0,72588000,0.000,agree,"Consolidated Statements of Operations: ""Shares used in computing net income per share: Diluted""",in thousands
+ALGN,2025,operating_cash_flow,593223000.0,593223000,0.000,agree,"Consolidated Statements of Cash Flows: ""Net cash provided by operating activities""",
+ALGN,2025,capex,102445000.0,102445000,0.000,agree,"Consolidated Statements of Cash Flows: ""Purchase of property, plant and equipment""",
+ALGN,2025,equity,4049147000.0,4049147000,0.000,agree,"Consolidated Balance Sheets: ""Total stockholders' equity""",
+ALGN,2025,cash,1094908000.0,1094908000,0.000,agree,"Consolidated Balance Sheets: ""Cash and cash equivalents""",
+ALGN,2025,short_term_investments,,0,0.000,agree,Consolidated Balance Sheets: no marketable securities line at 12/31/2025,none reported; ours is blank (treated as 0)
+ALGN,2025,debt,0.0,0,0.000,agree,"Consolidated Balance Sheets (no debt lines); credit facility note: ""no outstanding borrowings under the facility""","only operating lease liabilities, excluded"
+ELV,2025,revenue,199125000000.0,199125000000,0.000,agree,"Consolidated Statements of Income: ""Total revenues""","in millions; includes net investment income and net losses on financial instruments (Total operating revenue = 197,584)"
+ELV,2025,net_income,5662000000.0,5662000000,0.000,agree,"Consolidated Statements of Income: ""Shareholders' net income""","excludes NCI (Net income incl. NCI 5,661)"
+ELV,2025,eps_diluted,25.21,25.21,0.000,agree,"Consolidated Statements of Income: ""Shareholders' earnings per share: Diluted""",
+ELV,2025,diluted_shares,224600000.0,224600000,0.000,agree,"Note 19 Shareholders' Earnings per Share: ""Denominator for diluted shareholders' earnings per share""",in millions (224.6)
+ELV,2025,operating_cash_flow,4290000000.0,4290000000,0.000,agree,"Consolidated Statements of Cash Flows: ""Net cash provided by operating activities""",
+ELV,2025,capex,1116000000.0,1116000000,0.000,agree,"Consolidated Statements of Cash Flows: ""Purchases of property and equipment""",
+ELV,2025,equity,43882000000.0,43882000000,0.000,agree,"Consolidated Balance Sheets: ""Total shareholders' equity""","excludes NCI (Total equity 44,026)"
+ELV,2025,cash,9491000000.0,9491000000,0.000,agree,"Consolidated Balance Sheets: ""Cash and cash equivalents""",
+ELV,2025,short_term_investments,25884000000.0,26624000000,-2.779,DIFFERENT,"Consolidated Balance Sheets, current assets: ""Fixed maturity securities"" (25,884) + ""Equity securities"" (740)","definition: ours takes only current fixed maturity securities (25,884, exact match); the current equity securities (740) are also marketable securities in current assets"
+ELV,2025,debt,32046000000.0,32046000000,0.000,agree,"Consolidated Balance Sheets: ""Short-term borrowings"" (150) + ""Current portion of long-term debt"" (1,099) + ""Long-term debt, less current portion"" (30,797)",
+DG,2026,revenue,42724369000.0,42724369000,0.000,agree,"Consolidated Statements of Income: ""Net sales""",in thousands
+DG,2026,net_income,1512311000.0,1512311000,0.000,agree,"Consolidated Statements of Income: ""Net income""",
+DG,2026,eps_diluted,6.85,6.85,0.000,agree,"Consolidated Statements of Income: ""Earnings per share: Diluted""",
+DG,2026,diluted_shares,220814000.0,220814000,0.000,agree,"Consolidated Statements of Income: ""Weighted average shares outstanding: Diluted""",in thousands
+DG,2026,operating_cash_flow,3634500000.0,3634500000,0.000,agree,"Consolidated Statements of Cash Flows: ""Net cash provided by (used in) operating activities""",
+DG,2026,capex,1241162000.0,1241162000,0.000,agree,"Consolidated Statements of Cash Flows: ""Purchases of property and equipment""",
+DG,2026,equity,8511962000.0,8511962000,0.000,agree,"Consolidated Balance Sheets: ""Total shareholders' equity""",
+DG,2026,cash,1138501000.0,1138501000,0.000,agree,"Consolidated Balance Sheets: ""Cash and cash equivalents""",
+DG,2026,short_term_investments,,0,0.000,agree,Consolidated Balance Sheets: no short-term investments line,none reported; ours is blank (treated as 0)
+DG,2026,debt,4648666000.0,4431616000,4.898,DIFFERENT,"Note 5 Current and long-term obligations: total 4,580,282 (= ""Current portion of long-term obligations"" 14,401 + ""Long-term obligations"" 4,565,881) less ""Other"" 148,666","definition: Note 4 (Leases) says finance lease liabilities are included in long-term obligations; the only non-note line is ""Other"" 148,666, excluded here as finance leases. Ours 4,648,666 = notes at principal 4,500,000 + ""Other"" 148,666, i.e. includes the finance-lease line and uses face value instead of carrying amount (carrying incl. Other = 4,580,282, +1.5%)"
+ZTS,2025,revenue,9467000000.0,9467000000,0.000,agree,"Consolidated Statements of Income: ""Revenue""",in millions
+ZTS,2025,net_income,2673000000.0,2673000000,0.000,agree,"Consolidated Statements of Income: ""Net income attributable to Zoetis Inc.""",NCI is nil in 2025
+ZTS,2025,eps_diluted,6.02,6.02,0.000,agree,"Consolidated Statements of Income: ""Earnings per share attributable to Zoetis Inc. stockholders: Diluted""",
+ZTS,2025,diluted_shares,443835000.0,443835000,0.000,agree,"Consolidated Statements of Income: ""Weighted-average common shares outstanding: Diluted""",in millions (443.835)
+ZTS,2025,operating_cash_flow,2904000000.0,2904000000,0.000,agree,"Consolidated Statements of Cash Flows: ""Net cash provided by operating activities""",
+ZTS,2025,capex,621000000.0,621000000,0.000,agree,"Consolidated Statements of Cash Flows: ""Capital expenditures""",
+ZTS,2025,equity,3331000000.0,3331000000,0.000,agree,"Consolidated Balance Sheets: ""Total Zoetis Inc. equity""",
+ZTS,2025,cash,2312000000.0,2312000000,0.000,agree,"Consolidated Balance Sheets: ""Cash and cash equivalents""",includes $2 million restricted cash per footnote
+ZTS,2025,short_term_investments,,0,0.000,agree,Consolidated Balance Sheets: no short-term investments line,none reported; ours is blank (treated as 0)
+ZTS,2025,debt,9150000000.0,9042000000,1.194,close,"Consolidated Balance Sheets: ""Current portion of long-term debt"" (—) + ""Long-term debt, net of discount and issuance costs"" (9,042)","principal vs carrying: ours 9,150 is the aggregate principal in the debt note (before -93 unamortized discount/issuance costs and -15 swap fair-value adjustment)"
+COR,2025,revenue,321332819000.0,321332819000,0.000,agree,"Consolidated Statements of Operations: ""Revenue""",in thousands
+COR,2025,net_income,1554169000.0,1554169000,0.000,agree,"Consolidated Statements of Operations: ""Net income attributable to Cencora, Inc.""","excludes NCI (Net income 1,567,814k)"
+COR,2025,eps_diluted,7.96,7.96,0.000,agree,"Consolidated Statements of Operations: ""Earnings per share: Diluted""",
+COR,2025,diluted_shares,195214000.0,195214000,0.000,agree,"Consolidated Statements of Operations: ""Weighted average common shares outstanding: Diluted""",in thousands
+COR,2025,operating_cash_flow,3875120000.0,3875120000,0.000,agree,"Consolidated Statements of Cash Flows: ""NET CASH PROVIDED BY OPERATING ACTIVITIES""",
+COR,2025,capex,667981000.0,667981000,0.000,agree,"Consolidated Statements of Cash Flows: ""Capital expenditures""",
+COR,2025,equity,1508019000.0,1508019000,0.000,agree,"Consolidated Balance Sheets: ""Total Cencora, Inc. stockholders' equity""","excludes NCI (Total stockholders' equity 1,747,085k)"
+COR,2025,cash,4356138000.0,4356138000,0.000,agree,"Consolidated Balance Sheets: ""Cash and cash equivalents""",
+COR,2025,short_term_investments,,0,0.000,agree,Consolidated Balance Sheets: no short-term investments line,none reported; ours is blank (treated as 0)
+COR,2025,debt,7660773000.0,7660773000,0.000,agree,"Consolidated Balance Sheets: ""Short-term debt"" (117,785) + ""Long-term debt"" (7,542,988); Note 6 Debt: ""Total debt"" 7,660,773","includes nonrecourse debt 181,751k"
+RMD,2026,revenue,5653443000.0,5653443000,0.000,agree,"Consolidated Statements of Income: ""Net revenue""",in thousands
+RMD,2026,net_income,1523293000.0,1523293000,0.000,agree,"Consolidated Statements of Income: ""Net income""",
+RMD,2026,eps_diluted,10.43,10.43,0.000,agree,"Consolidated Statements of Income: ""Diluted earnings per share (note 11)""",
+RMD,2026,diluted_shares,146054000.0,146054000,0.000,agree,"Consolidated Statements of Income: ""Diluted shares outstanding (000's)""",in thousands
+RMD,2026,operating_cash_flow,1805829000.0,1805829000,0.000,agree,"Consolidated Statements of Cash Flows: ""Net cash provided by (used in) operating activities""",
+RMD,2026,capex,156285000.0,156285000,0.000,agree,"Consolidated Statements of Cash Flows: ""Purchases of property, plant and equipment""",
+RMD,2026,equity,6585393000.0,6585393000,0.000,agree,"Consolidated Balance Sheets: ""Total stockholders' equity""",
+RMD,2026,cash,1469234000.0,1469234000,0.000,agree,"Consolidated Balance Sheets: ""Cash and cash equivalents""",
+RMD,2026,short_term_investments,,0,0.000,agree,Consolidated Balance Sheets: no short-term investments line,none reported; ours is blank (treated as 0)
+RMD,2026,debt,659950000.0,659365000,0.089,agree,"Consolidated Balance Sheets: ""Short-term debt, net (note 8)"" (259,950) + ""Long-term debt, net (note 8)"" (399,415); Note 8: ""Total debt"" 659,365","ours 659,950 mixes short-term net (259,950) with long-term gross principal (400,000); gap is 585k deferred borrowing costs"
+PAYX,2026,revenue,6512000000.0,6512000000,0.000,agree,"Consolidated Statements of Income and Comprehensive Income: ""Total revenue""",in millions; includes interest on funds held for clients (210.9)
+PAYX,2026,net_income,1760100000.0,1760100000,0.000,agree,"Consolidated Statements of Income and Comprehensive Income: ""Net income""",
+PAYX,2026,eps_diluted,4.89,4.89,0.000,agree,"Consolidated Statements of Income and Comprehensive Income: ""Diluted earnings per share""",
+PAYX,2026,diluted_shares,360000000.0,360000000,0.000,agree,"Consolidated Statements of Income and Comprehensive Income: ""Weighted-average common shares outstanding, assuming dilution""",in millions (360.0)
+PAYX,2026,operating_cash_flow,2556700000.0,2556700000,0.000,agree,"Consolidated Statements of Cash Flows: ""Net cash provided by operating activities""",
+PAYX,2026,capex,234900000.0,234900000,0.000,agree,"Consolidated Statements of Cash Flows: ""Purchases of property and equipment""",
+PAYX,2026,equity,3735100000.0,3735100000,0.000,agree,"Consolidated Balance Sheets: ""Total stockholders' equity""",
+PAYX,2026,cash,1088200000.0,1088200000,0.000,agree,"Consolidated Balance Sheets: ""Cash and cash equivalents""",excludes restricted cash 52.8 and funds held for clients
+PAYX,2026,short_term_investments,36300000.0,36300000,0.000,agree,"Consolidated Balance Sheets: ""Corporate investments""","excludes funds held for clients (4,832.2)"
+PAYX,2026,debt,4600000000.0,4556100000,0.964,close,"Consolidated Balance Sheets: ""Short-term debt"" (—) + ""Long-term debt, net, current portion"" (—) + ""Long-term debt, net of debt issuance costs"" (4,556.1)","principal vs carrying: ours 4,600.0 is ""Total long-term debt"" principal in Note N, before 43.9 unamortized discount and issuance costs"
+LMT,2025,revenue,75048000000.0,75048000000,0.000,agree,"Consolidated Statements of Earnings: ""Total sales""",in millions
+LMT,2025,net_income,5017000000.0,5017000000,0.000,agree,"Consolidated Statements of Earnings: ""Net earnings""",
+LMT,2025,eps_diluted,21.49,21.49,0.000,agree,"Consolidated Statements of Earnings: ""Earnings per common share: Diluted""",
+LMT,2025,diluted_shares,233500000.0,233500000,0.000,agree,"Note 2 Earnings Per Share: ""Weighted average common shares outstanding for diluted computations""",in millions (233.5)
+LMT,2025,operating_cash_flow,8557000000.0,8557000000,0.000,agree,"Consolidated Statements of Cash Flows: ""Net cash provided by operating activities""",
+LMT,2025,capex,1649000000.0,1649000000,0.000,agree,"Consolidated Statements of Cash Flows: ""Capital expenditures""",
+LMT,2025,equity,6721000000.0,6721000000,0.000,agree,"Consolidated Balance Sheets: ""Total stockholders' equity""",
+LMT,2025,cash,4121000000.0,4121000000,0.000,agree,"Consolidated Balance Sheets: ""Cash and cash equivalents""",
+LMT,2025,short_term_investments,,0,0.000,agree,Consolidated Balance Sheets: no short-term investments line,none reported; ours is blank (treated as 0)
+LMT,2025,debt,22914000000.0,21700000000,5.594,DIFFERENT,"Consolidated Balance Sheets: ""Current maturities of long-term debt"" (1,168) + ""Long-term debt, net"" (20,532); Note 10 debt table: ""Total debt, net"" 21,700","principal vs carrying: ours 22,914 is gross ""Total debt"" in the debt note, before 1,214 of unamortized discounts and issuance costs (no short-term borrowings at year-end)"
+ADP,2026,revenue,21947400000.0,21947400000,0.000,agree,"Statements of Consolidated Earnings: ""TOTAL REVENUES""",in millions; includes interest on funds held for clients and PEO revenues (net of pass-through costs)
+ADP,2026,net_income,4413500000.0,4413500000,0.000,agree,"Statements of Consolidated Earnings: ""NET EARNINGS""",
+ADP,2026,eps_diluted,10.94,10.94,0.000,agree,"Statements of Consolidated Earnings: ""DILUTED EARNINGS PER SHARE""",
+ADP,2026,diluted_shares,403300000.0,403300000,0.000,agree,"Statements of Consolidated Earnings: ""Diluted weighted average shares outstanding""",in millions (403.3)
+ADP,2026,operating_cash_flow,5441200000.0,5441200000,0.000,agree,"Statements of Consolidated Cash Flows: ""Net cash flows provided by operating activities""",
+ADP,2026,capex,196600000.0,196600000,0.000,agree,"Statements of Consolidated Cash Flows: ""Capital expenditures""",
+ADP,2026,equity,6031200000.0,6031200000,0.000,agree,"Consolidated Balance Sheets: ""Total stockholders' equity""",
+ADP,2026,cash,4230100000.0,4230100000,0.000,agree,"Consolidated Balance Sheets: ""Cash and cash equivalents""",excludes funds held for clients
+ADP,2026,short_term_investments,0.0,0,0.000,agree,"Consolidated Balance Sheets: ""Short-term marketable securities"" (—)","nil at 6/30/2026 (4,498.8 a year earlier)"
+ADP,2026,debt,5002800000.0,5104400000,-1.990,close,"Consolidated Balance Sheets: ""Obligations under reverse repurchase agreements"" (139.3) + ""Obligations under commercial paper borrowings"" (—) + ""Long-term debt"" (4,964.1); Note 10: ""Less: current portion"" (1.0, inside accrued expenses)","definition: ours appears to cover only the notes (Note 10 principal 5,001.8 + current 1.0 = 5,002.8) and leaves out the 139.3 reverse-repurchase borrowings, which ADP describes as short-term borrowings for client funds; corporate debt alone at carrying value = 4,965.1 (ours +0.8%)"
+ALLE,2025,revenue,4067300000.0,4067300000,0.000,agree,"Consolidated Statements of Comprehensive Income: ""Net revenues""",in millions
+ALLE,2025,net_income,643800000.0,643800000,0.000,agree,"Consolidated Statements of Comprehensive Income: ""Net earnings attributable to Allegion plc""",NCI nil in 2025
+ALLE,2025,eps_diluted,7.44,7.44,0.000,agree,"Consolidated Statements of Comprehensive Income: ""Earnings per share attributable to Allegion plc ordinary shareholders: Diluted net earnings""",
+ALLE,2025,diluted_shares,86600000.0,86600000,0.000,agree,"Note (Earnings per share): ""Weighted-average number of diluted shares""",in millions (86.6)
+ALLE,2025,operating_cash_flow,783800000.0,783800000,0.000,agree,"Consolidated Statements of Cash Flows: ""Net cash provided by operating activities""",
+ALLE,2025,capex,98100000.0,98100000,0.000,agree,"Consolidated Statements of Cash Flows: ""Capital expenditures""",
+ALLE,2025,equity,2067600000.0,2067600000,0.000,agree,"Consolidated Balance Sheets: ""Total equity"" (Allegion plc shareholders' equity; no NCI)",
+ALLE,2025,cash,356200000.0,356200000,0.000,agree,"Consolidated Balance Sheets: ""Cash and cash equivalents""",
+ALLE,2025,short_term_investments,,0,0.000,agree,Consolidated Balance Sheets: no short-term investments line,none reported; ours is blank (treated as 0)
+ALLE,2025,debt,1990800000.0,1980100000,0.540,close,"Consolidated Balance Sheets: ""Short-term borrowings and current maturities of long-term debt"" (0.2) + ""Long-term debt"" (1,979.9); Note 8: ""Total debt"" 1,980.1","principal vs carrying: ours 1,990.8 is Note 8 ""Total borrowings outstanding"" before 10.7 discounts and issuance costs"
+ROL,2025,revenue,3761050000.0,3761050000,0.000,agree,"Consolidated Statements of Income: ""Customer services"" (sole line under REVENUES)",in thousands
+ROL,2025,net_income,526705000.0,526705000,0.000,agree,"Consolidated Statements of Income: ""NET INCOME""",
+ROL,2025,eps_diluted,1.09,1.09,0.000,agree,"Consolidated Statements of Income: ""NET INCOME PER SHARE - BASIC AND DILUTED""",
+ROL,2025,diluted_shares,484147000.0,484147000,0.000,agree,"Consolidated Statements of Income: ""Weighted average shares outstanding – diluted""",in thousands
+ROL,2025,operating_cash_flow,678107000.0,678107000,0.000,agree,"Consolidated Statements of Cash Flows: ""Net cash provided by operating activities""",
+ROL,2025,capex,28086000.0,28086000,0.000,agree,"Consolidated Statements of Cash Flows: ""Capital expenditures""",
+ROL,2025,equity,1374321000.0,1374321000,0.000,agree,"Consolidated Statements of Financial Position: ""Total stockholders' equity""",
+ROL,2025,cash,100004000.0,100004000,0.000,agree,"Consolidated Statements of Financial Position: ""Cash and cash equivalents""",
+ROL,2025,short_term_investments,,0,0.000,agree,Consolidated Statements of Financial Position: no short-term investments line,none reported; ours is blank (treated as 0)
+ROL,2025,debt,623683000.0,609830000,2.272,DIFFERENT,"Consolidated Statements of Financial Position: ""Short-term debt"" (123,683; commercial paper 114.4M + bank overdrafts 9.3M) + ""Long-term debt"" (486,147)","principal vs carrying: ours 623,683 uses the 2035 Senior Notes at principal 500,000 instead of carrying 486,147 (Note 10: less 7,125 unamortized discount and 6,728 issuance costs)"
+META,2025,revenue,200966000000.0,200966000000,0.000,agree,"Consolidated Statements of Income: ""Revenue""",in millions
+META,2025,net_income,60458000000.0,60458000000,0.000,agree,"Consolidated Statements of Income: ""Net income""",
+META,2025,eps_diluted,23.49,23.49,0.000,agree,"Consolidated Statements of Income: ""Earnings per share: Diluted""",
+META,2025,diluted_shares,2574000000.0,2574000000,0.000,agree,"Consolidated Statements of Income: ""Weighted-average shares used to compute earnings per share: Diluted""","in millions (2,574)"
+META,2025,operating_cash_flow,115800000000.0,115800000000,0.000,agree,"Consolidated Statements of Cash Flows: ""Net cash provided by operating activities""",
+META,2025,capex,69691000000.0,69691000000,0.000,agree,"Consolidated Statements of Cash Flows: ""Purchases of property and equipment""","excludes principal payments on finance leases (2,524)"
+META,2025,equity,217243000000.0,217243000000,0.000,agree,"Consolidated Balance Sheets: ""Total stockholders' equity""",
+META,2025,cash,35873000000.0,35873000000,0.000,agree,"Consolidated Balance Sheets: ""Cash and cash equivalents""",
+META,2025,short_term_investments,45719000000.0,45719000000,0.000,agree,"Consolidated Balance Sheets: ""Marketable securities""",
+META,2025,debt,59000000000.0,58744000000,0.436,agree,"Consolidated Balance Sheets: ""Long-term debt"" (58,744); no current debt line; Note 10 Long-term Debt","principal vs carrying: ours 59,000 is ""Total face amount of long-term debt"", before 256 unamortized discount and issuance costs (within 0.5%)"
+IDXX,2025,revenue,4303702000.0,4303702000,0.000,agree,"Consolidated Statements of Income: ""Total revenue""",in thousands
+IDXX,2025,net_income,1059464000.0,1059464000,0.000,agree,"Consolidated Statements of Income: ""Net income""",
+IDXX,2025,eps_diluted,13.08,13.08,0.000,agree,"Consolidated Statements of Income: ""Earnings per Share: Diluted""",
+IDXX,2025,diluted_shares,81025000.0,81025000,0.000,agree,"Consolidated Statements of Income: ""Weighted Average Shares Outstanding: Diluted""",in thousands
+IDXX,2025,operating_cash_flow,1181805000.0,1181805000,0.000,agree,"Consolidated Statements of Cash Flows: ""Net cash provided by operating activities""",
+IDXX,2025,capex,124676000.0,124676000,0.000,agree,"Consolidated Statements of Cash Flows: ""Purchases of property and equipment""",
+IDXX,2025,equity,1605383000.0,1605383000,0.000,agree,"Consolidated Balance Sheets: ""Total IDEXX Laboratories, Inc. stockholders' equity""",
+IDXX,2025,cash,180070000.0,180070000,0.000,agree,"Consolidated Balance Sheets: ""Cash and cash equivalents""",
+IDXX,2025,short_term_investments,,0,0.000,agree,Consolidated Balance Sheets: no short-term investments line,none reported; ours is blank (treated as 0)
+IDXX,2025,debt,848000000.0,847837000,0.019,agree,"Consolidated Balance Sheets: ""Credit Facility"" (398,000) + ""Current portion of long-term debt"" (74,995) + ""Long-term debt, net of current portion"" (374,842)","ours 848,000 is principal; difference of 163k is unamortized issuance costs (within 0.5%)"
+FIX,2025,revenue,9101641000.0,9101641000,0.000,agree,"Consolidated Statements of Operations: ""REVENUE""",in thousands
+FIX,2025,net_income,1022558000.0,1022558000,0.000,agree,"Consolidated Statements of Operations: ""NET INCOME""",
+FIX,2025,eps_diluted,28.88,28.88,0.000,agree,"Consolidated Statements of Operations: ""INCOME PER SHARE: Diluted""",
+FIX,2025,diluted_shares,35413000.0,35413000,0.000,agree,"Consolidated Statements of Operations: ""SHARES USED IN COMPUTING INCOME PER SHARE: Diluted""",in thousands
+FIX,2025,operating_cash_flow,1186356000.0,1186356000,0.000,agree,"Consolidated Statements of Cash Flows: ""Net cash provided by operating activities""",
+FIX,2025,capex,154903000.0,154903000,0.000,agree,"Consolidated Statements of Cash Flows: ""Purchases of property and equipment""",
+FIX,2025,equity,2448774000.0,2448774000,0.000,agree,"Consolidated Balance Sheets: ""Total stockholders' equity""",
+FIX,2025,cash,981898000.0,981898000,0.000,agree,"Consolidated Balance Sheets: ""Cash and cash equivalents""",
+FIX,2025,short_term_investments,,0,0.000,agree,Consolidated Balance Sheets: no short-term investments line,none reported; ours is blank (treated as 0)
+FIX,2025,debt,145226000.0,145226000,0.000,agree,"Consolidated Balance Sheets: ""Current maturities of long-term debt"" (6,163) + ""LONG-TERM DEBT"" (139,063); Note 9 Debt Obligations: ""Total debt"" 145,226","revolver 100,000 + notes to former owners 44,575 + other debt 651; lease liabilities separate"
+ANET,2025,revenue,9005700000.0,9005700000,0.000,agree,"Consolidated Statements of Income: ""Total revenue""",in millions
+ANET,2025,net_income,3511400000.0,3511400000,0.000,agree,"Consolidated Statements of Income: ""Net income""",
+ANET,2025,eps_diluted,2.75,2.75,0.000,agree,"Consolidated Statements of Income: ""Earnings per share: Diluted""",
+ANET,2025,diluted_shares,1275700000.0,1275700000,0.000,agree,"Consolidated Statements of Income: ""Weighted-average common shares outstanding: Diluted""","in millions (1,275.7)"
+ANET,2025,operating_cash_flow,4371900000.0,4371900000,0.000,agree,"Consolidated Statements of Cash Flows: ""Net cash provided by operating activities""",
+ANET,2025,capex,119500000.0,119500000,0.000,agree,"Consolidated Statements of Cash Flows: ""Purchases of property, equipment and intangible assets""",line combines PP&E and intangibles; no separate PP&E-only figure on the statement
+ANET,2025,equity,12370500000.0,12370500000,0.000,agree,"Consolidated Balance Sheets: ""TOTAL STOCKHOLDERS' EQUITY""",
+ANET,2025,cash,1963900000.0,1963900000,0.000,agree,"Consolidated Balance Sheets: ""Cash and cash equivalents""",
+ANET,2025,short_term_investments,8779100000.0,8779100000,0.000,agree,"Consolidated Balance Sheets: ""Marketable securities"" (current)",
+ANET,2025,debt,0.0,0,0.000,agree,Consolidated Balance Sheets: no debt or borrowing lines,no borrowings mentioned anywhere in the 10-K

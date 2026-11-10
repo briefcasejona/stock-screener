@@ -1,0 +1,81 @@
+ticker,fiscal_year,metric,ours,report_value,diff_pct,verdict,where_found,note
+AD.AS,2025,revenue,92352000000.0,92352000000,0.00,agree,"Consolidated income statement: ""Net sales""",
+AD.AS,2025,net_income,2264000000.0,2264000000,0.00,agree,"Consolidated income statement: Net income attributable to ""Common shareholders""",
+AD.AS,2025,eps_diluted,2.5,2.5,0.00,agree,"Consolidated income statement: Net income per share attributable to common shareholders ""Diluted""",
+AD.AS,2025,diluted_shares,905600000.0,905000000,0.07,agree,"Note 29 EPS: ""Weighted average number of common shares for the purposes of diluted EPS"" (in millions)",Report rounds to millions; ours is derived (net income / diluted EPS)
+AD.AS,2025,operating_cash_flow,6989000000.0,6989000000,0.00,agree,"Consolidated statement of cash flows: ""Net cash from operating activities""",
+AD.AS,2025,capex,2564000000.0,2564000000,0.00,agree,"Consolidated statement of cash flows: ""Purchase of non-current assets""","Line includes intangibles and investment property, not PP&E only (Note 11 PP&E additions 1,756m; Note 14 intangible additions 531m)"
+AD.AS,2025,equity,14195000000.0,14195000000,0.00,agree,"Consolidated balance sheet: ""Equity attributable to common shareholders""",
+AD.AS,2025,cash,3605000000.0,3605000000,0.00,agree,"Consolidated balance sheet: ""Cash and cash equivalents""",
+AD.AS,2025,short_term_investments,,100000000,-100.00,DIFFERENT,"Note 19 Other current financial assets: ""Short-term deposits and similar instruments"" 14 + ""Investments in debt instruments - current portion"" 86 (inside balance-sheet line ""Other current financial assets"" 384)",Ours blank. Not a separate balance-sheet line; company counts 14+86 in its liquidity position
+AD.AS,2025,debt,4577000000.0,6429000000,-28.81,DIFFERENT,"Balance sheet ""Loans"" (non-current) 4,577 + Note 26 Other current financial liabilities: ""Loans - current portion"" 926, ""Short-term borrowings"" 336, ""Bank overdrafts"" 590","Ours = non-current Loans only; current debt (926+336+590) sits in ""Other current financial liabilities"" and was missed. Excluding overdrafts (notional cash pool) report would be 5,839m, still DIFFERENT (-21.6%)"
+AAF.L,2026,revenue,6415000000.0,6415000000,0.00,agree,"Consolidated statement of comprehensive income: ""Revenue""",
+AAF.L,2026,net_income,679000000.0,679000000,0.00,agree,"Consolidated statement of comprehensive income: Profit for the year attributable to ""Owners of the company""",
+AAF.L,2026,eps_diluted,0.186,0.186,0.00,agree,"Consolidated statement of comprehensive income: Earning per share ""Diluted"" 18.6 cents",
+AAF.L,2026,diluted_shares,3650537634.408602,3657400713,-0.19,agree,"Note 14 EPS: ""Weighted average ordinary shares outstanding for diluted EPS""",Ours derived from NI / rounded EPS (18.6c)
+AAF.L,2026,operating_cash_flow,3195000000.0,3195000000,0.00,agree,"Consolidated statement of cash flows: ""Net cash generated from operating activities""",
+AAF.L,2026,capex,753000000.0,753000000,0.00,agree,"Consolidated statement of cash flows: ""Purchase of property, plant and equipment and capital work-in-progress""",PP&E only; intangibles separate (122m)
+AAF.L,2026,equity,3148000000.0,3148000000,0.00,agree,"Consolidated statement of financial position: ""Equity attributable to owners of the company""",
+AAF.L,2026,cash,646000000.0,646000000,0.00,agree,"Consolidated statement of financial position: Financial assets ""- Cash and cash equivalents""",
+AAF.L,2026,short_term_investments,,20000000,-100.00,DIFFERENT,"Consolidated statement of financial position: current Financial assets ""- Investments""","Ours blank. Also ""Other bank balances"" 197m incl. term deposits 3-12 months 189m (Note 20) not counted here"
+AAF.L,2026,debt,2188000000.0,2188000000,0.00,agree,"Consolidated statement of financial position: Financial liabilities ""- Borrowings"" current 1,019 + non-current 1,169",Includes bank overdraft 255m (Note 23); leases separate
+SWEC-B.ST,2024,revenue,30676000000.0,30676000000,0.00,agree,"Koncernens resultaträkning: ""Nettoomsättning""",
+SWEC-B.ST,2024,net_income,2071000000.0,2071000000,0.00,agree,"Koncernens resultaträkning: Årets resultat hänförligt till ""Moderbolagets aktieägare""",
+SWEC-B.ST,2024,eps_diluted,5.75,5.75,0.00,agree,"Koncernens resultaträkning: ""Resultat per aktie efter utspädning, SEK""",
+SWEC-B.ST,2024,diluted_shares,360173913.04347825,360452631,-0.08,agree,"Note 11: ""Genomsnittligt antal aktier efter utspädning""",Ours derived from NI / rounded EPS
+SWEC-B.ST,2024,operating_cash_flow,4062000000.0,4062000000,0.00,agree,"Koncernens kassaflödesanalys: ""Kassaflöde från den löpande verksamheten""",
+SWEC-B.ST,2024,capex,363000000.0,363000000,0.00,agree,"Koncernens kassaflödesanalys: ""Förvärv av materiella anläggningstillgångar""",PP&E only; intangibles separate (26m)
+SWEC-B.ST,2024,equity,11918000000.0,11918000000,0.00,agree,"Koncernens balansräkning: ""Eget kapital hänförligt till moderbolagets aktieägare""",
+SWEC-B.ST,2024,cash,1654000000.0,1654000000,0.00,agree,"Koncernens balansräkning: ""Likvida medel""",
+SWEC-B.ST,2024,short_term_investments,,0,,agree,"Koncernens balansräkning: no current investments line (only non-current ""Finansiella placeringar"" 10m)","Ours blank, report has none (0)"
+SWEC-B.ST,2024,debt,3175000000.0,3175000000,0.00,agree,"Koncernens balansräkning: ""Långfristiga räntebärande skulder"" 2,004 + ""Kortfristiga räntebärande skulder"" 1,171","Note 27 total 3,176 (rounding); bank loans + commercial paper; leases separate"
+UMG.AS,2025,revenue,12507000000.0,12507000000,0.00,agree,"Consolidated Statements of Profit or Loss: ""Revenues""",
+UMG.AS,2025,net_income,1533000000.0,1533000000,0.00,agree,"Consolidated Statements of Profit or Loss: ""Net profit attributable to equity holders of the parent""",
+UMG.AS,2025,eps_diluted,0.83,0.83,0.00,agree,"Consolidated Statements of Profit or Loss: ""Earnings for the period attributable to equity holders of the parent - diluted""",
+UMG.AS,2025,diluted_shares,1846987951.807229,1853000000,-0.32,agree,"Note 8 EPS: ""Diluted weighted average number of shares"" (millions)",Ours derived from NI / rounded EPS (0.83)
+UMG.AS,2025,operating_cash_flow,1739000000.0,1739000000,0.00,agree,"Consolidated Statements of Cash Flows: ""Net cash provided by/(used for) operating activities""",
+UMG.AS,2025,capex,70000000.0,70000000,0.00,agree,"Consolidated Statements of Cash Flows: ""Capital expenditures"" (Note 11 PP&E)",PP&E only; catalogue (345m) and other intangibles (125m) separate
+UMG.AS,2025,equity,4543000000.0,4543000000,0.00,agree,"Consolidated Statement of Financial Position: ""Shareowners equity""",
+UMG.AS,2025,cash,451000000.0,451000000,0.00,agree,"Consolidated Statement of Financial Position: ""Cash and cash equivalents""",
+UMG.AS,2025,short_term_investments,,0,,agree,Consolidated Statement of Financial Position: no current investments line; Note 17 net debt deducts only cash and derivatives,"Ours blank, report has none (0)"
+UMG.AS,2025,debt,2846000000.0,2846000000,0.00,agree,"Note 17: ""Borrowings at amortized cost"" (balance sheet ""Long-term borrowings and other financial liabilities"" 2,297 + ""Short-term borrowings and other financial liabilities"" 549)","Bonds 2,293, RCF 8, CP 384, overdrafts 74, other 87; leases separate"
+SGE.L,2025,revenue,2513000000.0,2513000000,0.00,agree,"Consolidated income statement: ""Revenue""",
+SGE.L,2025,net_income,369000000.0,369000000,0.00,agree,"Consolidated income statement: Profit attributable to ""Owners of the parent""",
+SGE.L,2025,eps_diluted,0.3716,0.3716,0.00,agree,"Consolidated income statement: Earnings per share ""Diluted"" 37.16p",
+SGE.L,2025,diluted_shares,993003229.2787944,993000000,0.00,agree,Note 5 EPS: weighted average number of shares incl. dilutive effects (millions),Report in millions
+SGE.L,2025,operating_cash_flow,528000000.0,528000000,0.00,agree,"Consolidated statement of cash flows: ""Net cash generated from operating activities""",
+SGE.L,2025,capex,41000000.0,41000000,0.00,agree,"Consolidated statement of cash flows: ""Purchases of property, plant and equipment""",PP&E only; intangibles separate (18m)
+SGE.L,2025,equity,720000000.0,720000000,0.00,agree,"Consolidated balance sheet: ""Total equity"" (under ""Equity attributable to owners of the parent""; no NCI)",
+SGE.L,2025,cash,390000000.0,390000000,0.00,agree,"Consolidated balance sheet: ""Cash and cash equivalents""",
+SGE.L,2025,short_term_investments,,0,,agree,Consolidated balance sheet: no current investments line,"Ours blank, report has none (0)"
+SGE.L,2025,debt,1579000000.0,1476000000,6.98,DIFFERENT,"Note 11.4 Borrowings: ""Sterling denominated bond notes"" 1,041 + ""Euro denominated bond notes"" 436 + ""Unamortised RCF loan costs"" (1)","Ours 1,579 = balance-sheet ""Borrowings"" current 17 + non-current 1,562, which include lease liabilities 103m (current 17 all leases, non-current 86)"
+RMS.PA,2025,revenue,16002000000.0,16002000000,0.00,agree,"Compte de résultat consolidé: ""Chiffre d'affaires""",
+RMS.PA,2025,net_income,4524000000.0,4524000000,0.00,agree,"Compte de résultat consolidé: ""Résultat net - part du groupe""",
+RMS.PA,2025,eps_diluted,43.07,43.07,0.00,agree,"Compte de résultat consolidé: ""Résultat dilué par action en euros""",
+RMS.PA,2025,diluted_shares,105038309.7283492,105036704,0.00,agree,"Note 12.6: ""Nombre moyen d'actions après dilution""",Ours derived from NI / EPS
+RMS.PA,2025,operating_cash_flow,5374000000.0,5374000000,0.00,agree,"État des flux de trésorerie consolidés: ""Flux de trésorerie liés à l'activité (A)""",
+RMS.PA,2025,capex,1161000000.0,1161000000,0.00,agree,"État des flux de trésorerie consolidés: ""Investissements opérationnels""","Line includes intangibles: note 8.2 additions PP&E 1,034m + intangibles 127m"
+RMS.PA,2025,equity,18840000000.0,18840000000,0.00,agree,"Bilan consolidé: ""Capitaux propres - part du groupe""",
+RMS.PA,2025,cash,12239000000.0,12239000000,0.00,agree,"Bilan consolidé: ""Trésorerie et équivalents de trésorerie""",
+RMS.PA,2025,short_term_investments,,0,,agree,Bilan consolidé: no current investments line,"Term placements >3 months (534m, of which 501m 1-5 yrs) are outside current assets (in financial fixed assets); not on face as current; Ours blank, report has none (0)"
+RMS.PA,2025,debt,34000000.0,0,,DIFFERENT,"Bilan consolidé: ""Emprunts et dettes financières"" >1 an 34 + <1 an 0; § 3.3 breakdown: bank overdrafts 0, other financial debt 0, NCI put options 34","Ours 34m = put options granted to non-controlling interests, not borrowings; actual borrowings are ~0 (diff_pct undefined)"
+KOG.OL,2024,revenue,48872000000.0,48872000000,0.00,agree,"Resultatregnskap: ""Driftsinntekter""",
+KOG.OL,2024,net_income,5126000000.0,5126000000,0.00,agree,"Resultatregnskap: Henførbart til ""Aksjeeiere i morselskapet""",
+KOG.OL,2024,eps_diluted,5.828,29.14,-80.00,DIFFERENT,"Resultatregnskap / note 17: ""Resultat per aksje, utvannet"" NOK",Ours 5.828 = 29.14/5: adjusted for the 1:5 share split proposed 6 Feb 2025 (after FY2024); report figure is pre-split
+KOG.OL,2024,diluted_shares,879547014.4131777,175910000,400.00,DIFFERENT,"Note 17: ""Gjennomsnittelig antall aksjer"" 175.91 million (no dilution effects)","Ours = 5x report: post-split (1:5) share count, derived from NI / split-adjusted EPS"
+KOG.OL,2024,operating_cash_flow,13744000000.0,13744000000,0.00,agree,"Kontantstrømoppstilling: ""Netto kontantstrøm fra driftsaktiviteter""",
+KOG.OL,2024,capex,1787000000.0,1787000000,0.00,agree,"Kontantstrømoppstilling: ""Kjøp av eiendom, anlegg og utstyr""",PP&E only; capitalised development/intangibles separate (459m)
+KOG.OL,2024,equity,18677000000.0,18677000000,0.00,agree,"Finansiell oppstilling: ""Sum egenkapital tilordnet aksjeeiere i morselskapet""",
+KOG.OL,2024,cash,14293000000.0,14293000000,0.00,agree,"Finansiell oppstilling: ""Betalingsmidler""",
+KOG.OL,2024,short_term_investments,,0,,agree,Finansiell oppstilling: no current investments line,"Ours blank, report has none (0)"
+KOG.OL,2024,debt,2500000000.0,2500000000,0.00,agree,"Finansiell oppstilling: ""Langsiktig rentebærende lån"" 2,500 + ""Kortsiktig rentebærende lån"" -",Three bonds; leases separate
+ASML.AS,2025,revenue,32667300000.0,32667300000,0.00,agree,"Consolidated statements of operations: ""Total net sales""",
+ASML.AS,2025,net_income,9609400000.0,9609400000,0.00,agree,"Consolidated statements of operations: ""Net income""",No NCI
+ASML.AS,2025,eps_diluted,24.71,24.71,0.00,agree,"Consolidated statements of operations: ""Diluted net income per ordinary share""",
+ASML.AS,2025,diluted_shares,388900000.0,388900000,0.00,agree,"Consolidated statements of operations: Number of ordinary shares used in computing per share amounts ""Diluted"" (millions)",
+ASML.AS,2025,operating_cash_flow,12658500000.0,12658500000,0.00,agree,"Consolidated statements of cash flows: ""Net cash provided by operating activities""",
+ASML.AS,2025,capex,1573600000.0,1573600000,0.00,agree,"Consolidated statements of cash flows: ""Purchase of property, plant and equipment""",PP&E only; intangibles separate (57.6m)
+ASML.AS,2025,equity,19612200000.0,19612200000,0.00,agree,"Consolidated balance sheets: ""Total shareholders' equity""",
+ASML.AS,2025,cash,12916000000.0,12916000000,0.00,agree,"Consolidated balance sheets: ""Cash and cash equivalents""",
+ASML.AS,2025,short_term_investments,405900000.0,405900000,0.00,agree,"Consolidated balance sheets: ""Short-term investments""",
+ASML.AS,2025,debt,4390900000.0,4390900000,0.00,agree,"Consolidated balance sheets: ""Short-term borrowings and current portion of long-term debt"" 1,681.9 + ""Long-term debt"" 2,709.0",Includes ECP commercial paper; Note 16

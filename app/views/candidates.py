@@ -17,22 +17,30 @@ MEANING = {
 }
 
 
+def palette():
+    """The value line's colours, for the light or the dark look (Apple's system colours)."""
+    if (st.context.theme.type or 'light') == 'dark':
+        return {'zone': '#1f4d2c', 'band': '#48484a', 'ink': '#e5e5ea', 'price': '#ff453a', 'bars': '#64a8f0'}
+    return {'zone': '#d6f0dc', 'band': '#d1d1d6', 'ink': '#3a3a3c', 'price': '#d70015', 'bars': '#7fa6d6'}
+
+
 def value_line(c, m):
     """Bear-bull range, the buy zone, the three scenario values and today's price on one line."""
+    col = palette()
     bb = core.buy_below(c, m)
     lo = min(c['bear'], c['price'], bb) * 0.85
     hi = max(c['bull'], c['price']) * 1.06
     x = alt.X('v:Q', scale=alt.Scale(domain=[lo, hi], nice=False), axis=alt.Axis(format=',.0f', title=None, grid=False))
-    zone = alt.Chart(pd.DataFrame([{'v': lo, 'v2': bb}])).mark_bar(height=26, color='#cdebd3').encode(x=x, x2='v2:Q')
-    band = alt.Chart(pd.DataFrame([{'v': c['bear'], 'v2': c['bull']}])).mark_bar(height=8, color='#c9d3e0',
+    zone = alt.Chart(pd.DataFrame([{'v': lo, 'v2': bb}])).mark_bar(height=26, color=col['zone'], cornerRadius=6).encode(x=x, x2='v2:Q')
+    band = alt.Chart(pd.DataFrame([{'v': c['bear'], 'v2': c['bull']}])).mark_bar(height=8, color=col['band'],
                                                                                     cornerRadius=4).encode(x=x, x2='v2:Q')
     pts = pd.DataFrame([{'v': c[k], 'label': f"{k.capitalize()} {core.money(c[k], c['currency'])}"}
                         for k in ('bear', 'base', 'bull')])
-    dots = alt.Chart(pts).mark_circle(size=110, color='#30425c', opacity=1).encode(x=x, tooltip=['label'])
-    names = alt.Chart(pts).mark_text(dy=-20, fontSize=12, color='#30425c').encode(x=x, text='label')
+    dots = alt.Chart(pts).mark_circle(size=110, color=col['ink'], opacity=1).encode(x=x, tooltip=['label'])
+    names = alt.Chart(pts).mark_text(dy=-20, fontSize=12, color=col['ink']).encode(x=x, text='label')
     price = pd.DataFrame([{'v': c['price'], 'label': f"Price {core.money(c['price'], c['currency'])}"}])
-    tick = alt.Chart(price).mark_tick(thickness=3, size=34, color='#c0392b').encode(x=x)
-    ptxt = alt.Chart(price).mark_text(dy=28, fontSize=12, fontWeight='bold', color='#c0392b').encode(x=x, text='label')
+    tick = alt.Chart(price).mark_tick(thickness=3, size=34, color=col['price']).encode(x=x)
+    ptxt = alt.Chart(price).mark_text(dy=28, fontSize=12, fontWeight='bold', color=col['price']).encode(x=x, text='label')
     return alt.layer(zone, band, dots, names, tick, ptxt).properties(height=110).configure_view(stroke=None)
 
 
@@ -168,7 +176,7 @@ def history_charts(hist, c):
             tooltip=['Year', 'kind', alt.Tooltip('value:Q', format='.1%')]).properties(height=240))
     with b:
         st.markdown('**Revenue** (millions, report currency)')
-        st.altair_chart(alt.Chart(h.dropna(subset=['revenue_m'])).mark_bar(color='#7f9cc0').encode(
+        st.altair_chart(alt.Chart(h.dropna(subset=['revenue_m'])).mark_bar(color=palette()['bars'], cornerRadiusTopLeft=4, cornerRadiusTopRight=4).encode(
             x=alt.X('Year:N', title=None), y=alt.Y('revenue_m:Q', title=None),
             tooltip=['Year', alt.Tooltip('revenue_m:Q', format=',.0f')]).properties(height=240))
 
@@ -278,8 +286,7 @@ def render():
                                     'Share of value after year 10': core.pct(s['after_year_10'], 0)} for s in scen]),
                      hide_index=True)
         st.caption(f"Growth rates: {c.get('assumptions_source', '')}. Starting cash flow: {c.get('fcf_basis', '')}.")
-        if c.get('notes'):
-            st.caption(f"Notes on the data: {c['notes']}")
+        core.show_notes(c.get('notes'), st)
         st.divider()
         what_if(c, scen)
     with t[1]:

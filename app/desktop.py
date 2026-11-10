@@ -100,6 +100,33 @@ def hidden():
 
 # ---------- the program itself ----------
 
+def watch_windows(grace=20, first=180):
+    """Stop the program once no window has been open on it for `grace` seconds (a page reload or the laptop waking
+    up reconnects well within that), or when no window ever opened within `first` seconds."""
+    import signal
+    import threading
+    from streamlit.runtime import Runtime
+
+    def run():
+        started, seen, empty_since = time.time(), False, None
+        while True:
+            time.sleep(2)
+            try:
+                n = Runtime.instance()._session_mgr.num_active_sessions()
+            except Exception:  # still starting
+                continue
+            now = time.time()
+            if n:
+                seen, empty_since = True, None
+                continue
+            empty_since = empty_since or now
+            if (seen and now - empty_since > grace) or (not seen and now - started > first):
+                print('every window is closed: stopping', flush=True)
+                os.kill(os.getpid(), signal.SIGTERM)
+                return
+    threading.Thread(target=run, daemon=True).start()
+
+
 def serve(port):
     """Run Streamlit in this process (it must have the main thread), as `streamlit run app.py` would."""
     from streamlit import config
@@ -114,6 +141,8 @@ def serve(port):
         'browser_gatherUsageStats': False,
     }
     config._main_script_path = script
+    if os.environ.get('STOCK_STOP_WHEN_CLOSED') == '1':
+        watch_windows()
     bootstrap.load_config_options(flag_options=flags)
     bootstrap.run(script, False, [], flags)
 
@@ -170,17 +199,19 @@ def find_browser():
 
 
 def open_window(url):
-    """Open the program in its own window. Returns the window's process, or None when it opened in the normal
-    browser instead (no Edge or Chrome: then Quit in the program's sidebar stops it)."""
+    """Open the program in its own window (Edge, Chrome or Brave as an app window, in the browser's normal profile,
+    so no first-run screens), or else in the normal browser. The program notices by itself when every window on it
+    is closed (watch_windows), so the browser's process doesn't need watching: it may hand the window to a browser
+    that is already open and exit straight away."""
     browser = find_browser()
     if browser:
-        profile = os.path.join(BASE, 'window')
-        return subprocess.Popen([browser, f'--app={url}', f'--user-data-dir={profile}', '--no-first-run',
-                                 '--no-default-browser-check', '--window-size=1400,950'],
-                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        print(f'opening a window: {os.path.basename(browser)} --app={url}')
+        subprocess.Popen([browser, f'--app={url}', '--window-size=1400,950'], stdin=subprocess.DEVNULL,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return
+    print(f'no Edge, Chrome or Brave: opening {url} in the normal browser')
     import webbrowser
     webbrowser.open(url)
-    return None
 
 
 def stop_process(p):
@@ -212,7 +243,7 @@ def launch():
             return 0  # the new version opens itself when it is installed
     port = free_port()
     server = subprocess.Popen(worker_cmd('--serve', str(port)), stdin=subprocess.DEVNULL, stdout=sys.stdout,
-                              stderr=sys.stdout, **hidden())
+                              stderr=sys.stdout, env={**os.environ, 'STOCK_STOP_WHEN_CLOSED': '1'}, **hidden())
     for _ in range(240):  # wait until it answers (the first start after installing takes longest)
         if healthy(port):
             break
@@ -225,12 +256,9 @@ def launch():
     with open(STATE, 'w', encoding='utf-8') as fh:
         json.dump({'port': port, 'pid': server.pid}, fh)
     try:
-        window = open_window(f'http://127.0.0.1:{port}')
-        # stop when the window is closed, or when the program is stopped (Quit in the sidebar)
-        while server.poll() is None and (window is None or window.poll() is None):
-            time.sleep(1)
+        open_window(f'http://127.0.0.1:{port}')
+        server.wait()  # it stops by itself when its windows are closed, or with Quit in the sidebar
     finally:
-        stop_process(window if 'window' in locals() else None)
         stop_process(server)
         try:
             os.remove(STATE)

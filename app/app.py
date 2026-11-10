@@ -8,6 +8,8 @@ import core
 from views import candidates, guide, journal, reports, screener, update
 
 st.set_page_config(page_title='Stock Screener', page_icon=':material/query_stats:', layout='wide')
+st.html('<style>' + open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'style.css'), encoding='utf-8').read()
+        + '</style>')
 
 PAGES = {
     'candidates': st.Page(candidates.render, title='Candidates', icon=':material/star:', url_path='candidates', default=True),

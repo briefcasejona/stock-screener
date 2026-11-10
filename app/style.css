@@ -1,0 +1,61 @@
+/* Apple-style details on top of the theme in .streamlit/config.toml (app.py adds this to every page). */
+
+/* Type: big text tighter (negative tracking, tight leading), body text as the system sets it */
+h1 { letter-spacing: -0.028em; line-height: 1.07; }
+h2, h3 { letter-spacing: -0.016em; line-height: 1.18; }
+[data-testid="stMetricValue"] { letter-spacing: -0.022em; font-variant-numeric: tabular-nums; }
+[data-testid="stMetricLabel"] p { font-weight: 500; }
+[data-testid="stCaptionContainer"] { line-height: 1.5; }
+
+/* A calmer column: generous margins, content not stretched across a wide screen */
+[data-testid="stMainBlockContainer"] { max-width: 1240px; padding-top: 4.5rem; }
+
+/* The top bar is a translucent layer: content scrolls under it, blurred */
+header[data-testid="stHeader"] {
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.06);
+}
+@media (prefers-color-scheme: dark) {
+  header[data-testid="stHeader"] { background: rgba(22, 22, 23, 0.72); box-shadow: 0 1px 0 rgba(255, 255, 255, 0.08); }
+}
+
+/* Buttons are pills; segmented controls keep their rounded segments */
+[data-testid="stBaseButton-primary"], [data-testid="stBaseButton-secondary"],
+[data-testid="stDownloadButton"] button, [data-testid="stFormSubmitButton"] button { border-radius: 999px; }
+
+/* Segmented controls stay on one line; in the sidebar they share its width evenly */
+[data-testid="stButtonGroup"] > div { flex-wrap: nowrap; }
+[data-testid="stSidebar"] [data-testid="stElementContainer"]:has(> [data-testid="stButtonGroup"]),
+[data-testid="stSidebar"] [data-testid="stButtonGroup"],
+[data-testid="stSidebar"] [data-testid="stButtonGroup"] > div { width: 100% !important; max-width: none !important; }
+[data-testid="stSidebar"] [data-testid="stButtonGroup"] > div > button { flex: 1 1 0; min-width: 0; padding: 4px 6px; }
+
+/* Instant feedback when pressed, not on release */
+button, [role="tab"], [data-testid="stNavSectionHeader"], a[data-testid="stTopNavLink"] {
+  transition: transform 100ms ease-out, background-color 160ms ease, color 160ms ease, box-shadow 160ms ease;
+}
+button:active:not(:disabled), a[data-testid="stTopNavLink"]:active { transform: scale(0.97); }
+
+/* Panels (bordered containers, expanders, tables) read as soft cards */
+[data-testid="stExpander"] details, [data-testid="stVerticalBlockBorderWrapper"] {
+  border-radius: 1rem;
+}
+[data-testid="stExpander"] details { box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 16px rgba(0, 0, 0, 0.04); }
+[data-testid="stDataFrame"] { border-radius: 0.875rem; overflow: hidden; }
+
+/* Dividers as quiet hairlines */
+hr { opacity: 0.6; }
+
+/* People who ask for less motion or transparency get it */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+  button:active:not(:disabled), a[data-testid="stTopNavLink"]:active { transform: none; }
+}
+@media (prefers-reduced-transparency: reduce) {
+  header[data-testid="stHeader"] { background: #ffffff; backdrop-filter: none; -webkit-backdrop-filter: none; }
+}
+@media (prefers-reduced-transparency: reduce) and (prefers-color-scheme: dark) {
+  header[data-testid="stHeader"] { background: #161617; }
+}

@@ -83,13 +83,15 @@ def render():
         'Checks': r['passed'], 'Quality': f"{r['quality_passed']}/6", 'GARP': f"{r['garp_passed']}/4",
         'ROIC (median)': pct100(r['roic_median']), 'Revenue growth': pct100(r['revenue_growth']), 'Cash/share growth': pct100(r['fcf_ps_growth']),
         'Growth price assumes': pct100(r['implied_growth']), 'P/E': r['pe'], 'Years': r['years'], 'Source': r['source'],
-        'Data notes': r['data_flags']} for r in view])
+        'Notes': len(core.data_notes(r['data_flags'])) or None} for r in view])
     pc = st.column_config.NumberColumn(format='%.1f%%')
     ev = st.dataframe(table, hide_index=True, on_select='rerun', selection_mode='single-row', key='scr_table',
-                      height=420, column_config={
+                      height=min(420, 38 + 35 * len(view)), column_config={
                           'Checks': st.column_config.ProgressColumn('Checks', min_value=0, max_value=10, format='%d/10'),
                           'ROIC (median)': pc, 'Revenue growth': pc, 'Cash/share growth': pc, 'Growth price assumes': pc,
-                          'P/E': st.column_config.NumberColumn(format='%.1f')})
+                          'P/E': st.column_config.NumberColumn(format='%.1f'),
+                          'Notes': st.column_config.NumberColumn(
+                              'Notes', format='%d', help='Notes on the data. Click the row to read them in full.')})
     if not ev.selection.rows:
         st.caption('Click a row to see its checks and analyse it.')
         return
@@ -100,6 +102,5 @@ def render():
                f"({r['first_year']}–{r['last_year']}) · source {r['source']} · price {r['price']} {r['price_currency']}")
     st.dataframe(pd.DataFrame([{'Step': s, 'Check': n, 'Value': v(r), 'Threshold': t, 'Result': RESULT.get(r[k], r[k])}
                                for k, s, n, v, t in CHECKS]), hide_index=True)
-    if r['data_flags']:
-        st.caption(f"Data notes: {r['data_flags']}")
+    core.show_notes(r['data_flags'], st)
     analyse_buttons(r)

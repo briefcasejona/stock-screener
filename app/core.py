@@ -8,6 +8,7 @@ import contextlib
 import io
 import json
 import os
+import re
 import subprocess
 import sys
 from datetime import date
@@ -146,6 +147,28 @@ def money(v, cur):
     sym = {'EUR': '€', 'USD': '$', 'GBP': '£'}.get(cur)
     txt = f'{v:,.2f}' if abs(v) < 100 else f'{v:,.0f}'
     return f'{sym}{txt}' if sym else f'{cur} {txt}'
+
+
+def data_notes(text):
+    """The screener's notes on a company's data as separate sentences ("a; b; c" in the files), readable in full."""
+    out = []
+    for part in (text or '').split('; '):
+        part = part.strip()
+        if not part:
+            continue
+        if out and part.startswith('the larger is used'):  # one note that itself contains "; "
+            out[-1] += '; ' + part
+            continue
+        part = re.sub(r'\b1 years\b', '1 year', part)
+        out.append(part[:1].upper() + part[1:])
+    return out
+
+
+def show_notes(text, st):
+    """Show the notes as a short list under a heading, or nothing when there are none."""
+    notes = data_notes(text)
+    if notes:
+        st.markdown('**Notes on the data**\n\n' + '\n'.join(f'- {n}' for n in notes))
 
 
 def pct(v, nd=1):

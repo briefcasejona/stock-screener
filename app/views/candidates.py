@@ -5,6 +5,7 @@ import altair as alt
 import pandas as pd
 import streamlit as st
 
+import commit
 import core
 from views import data
 
@@ -198,6 +199,37 @@ def journal_part(c, entries):
     if not mine:
         st.caption('No entries yet.')
     journal_form(c)
+    claim_form(c)
+
+
+def claim_form(c, key=''):
+    """A dated claim the program checks itself once the target year's figures are in."""
+    import claims
+    with st.form(f"claim_{c['ticker']}{key}", clear_on_submit=True):
+        st.markdown(f"**Make a claim** about {c['company']}: something that can turn out wrong, checked by the program "
+                    'against the filed figures. Say how sure you are; over time the program shows whether your 80% '
+                    'claims come true about 80% of the time.')
+        a, b, d = st.columns([2, 1, 1])
+        metric = a.selectbox('Measure', list(claims.METRICS), format_func=lambda k: claims.METRICS[k][0])
+        direction = b.selectbox('Direction', ['above', 'below'], format_func=lambda k: 'at least' if k == 'above' else 'at most')
+        thr = d.number_input('% (a year for growth)', -50.0, 100.0, 8.0, 0.5)
+        a, b = st.columns(2)
+        this_year = date.today().year
+        target = a.selectbox('By fiscal year', list(range(this_year - 1, this_year + 4)), index=2)
+        conf = b.select_slider('How sure are you?', claims.CONFIDENCE, value=70, format_func=lambda v: f'{v}%')
+        why = st.text_input('Why do you expect it? (one line)')
+        if st.form_submit_button('Lock in the claim'):
+            try:
+                cl = claims.new(c['ticker'], c['company'], metric, direction, thr, target, conf, why)
+            except ValueError as e:
+                st.error(str(e))
+                return
+            except Exception as e:
+                st.error(f'Could not save the claim: {e}')
+                return
+            data.changed()
+            st.toast(f"Locked in: {claims.describe(cl)}.")
+            st.rerun()
 
 
 def journal_form(c, key=''):
@@ -217,9 +249,65 @@ def journal_form(c, key=''):
                                     'implied_growth': c['implied_growth'], 'bear': c['bear'], 'base': c['base'],
                                     'bull': c['bull'], 'why': why.strip(), 'change_mind': change.strip(),
                                     'next_check': nxt.strip(), 'author': 'You'})
+            if dec == 'Pass':  # a "No" is tracked too: was it right to stay away?
+                import portfolio
+                try:
+                    portfolio.add_pass(c)
+                except Exception as e:
+                    print('tracking the pass:', e)
             data.changed()
             st.toast('Added to the journal.')
             st.rerun()
+
+
+def committed(c, entry):
+    """The program shows its valuation once you have written down your own (the worked example is shown as is)."""
+    return bool((entry or {}).get('worked_example') or commit.get(c['ticker']))
+
+
+def commit_form(c):
+    st.markdown(f"#### First, your own estimate")
+    st.write('The program has valued this company, but it shows you its numbers only after you have written down '
+             'yours. That way you learn when your guesses get checked, not by reading the program\'s verdict. Use the '
+             '**History** tab (revenue, cash flow, margins, return on capital) and the annual report. Your estimate is '
+             'locked once saved and goes into the journal.')
+    with st.form(f"commit_{c['ticker']}"):
+        a, b = st.columns(2)
+        g = a.number_input('Free cash flow growth you expect, per year for the next 10 years (%)', -10.0, 40.0, None,
+                           0.5, placeholder='for example 8')
+        v = b.number_input(f"What one share is worth to you ({c['currency']})", 0.0, 1e7, None,
+                           placeholder=f"today's price is {core.money(c['price'], c['currency'])}")
+        why = st.text_input('Why, in one line?', placeholder='What makes you expect this growth?')
+        if st.form_submit_button('Lock in my estimate and show the program\'s', type='primary'):
+            if g is None or v is None:
+                st.error('Fill in both numbers.')
+                return
+            try:
+                commit.new(c, g, v, why)
+            except ValueError as e:
+                st.error(str(e))
+                return
+            data.changed()
+            st.rerun()
+
+
+def compare(c, scen):
+    mine = commit.get(c['ticker'])
+    if not mine:
+        return
+    base = next((s for s in scen if s['scenario'] == 'Base'), {})
+    gap = mine['value'] / c['base'] - 1 if c.get('base') else None
+    st.markdown(f"**Your estimate ({mine['date']}) next to the program's**")
+    st.dataframe(pd.DataFrame([
+        {'': 'Growth a year, next 10 years', 'You': f"{mine['growth']:.1f}%",
+         'The program (base case)': core.pct(base.get('growth')), 'The price assumes': core.pct(c['implied_growth'])},
+        {'': 'Value of one share', 'You': core.money(mine['value'], mine['currency']),
+         'The program (base case)': core.money(c['base'], c['currency']),
+         'The price assumes': core.money(c['price'], c['currency'])}]), hide_index=True)
+    if gap is not None:
+        st.caption(f"Your value is {abs(gap):.0%} {'above' if gap >= 0 else 'below'} the program's base value. Neither "
+                   'is the truth: write in the journal what you think explains the gap. Later, the figures show who '
+                   'was closer.')
 
 
 def render():
@@ -233,8 +321,15 @@ def render():
         st.info('No candidates yet. Pick a company on the Screener page and analyse it.')
         return
     rows = []
+    wl = {e['ticker']: e for e in core.watchlist()}
     for c in cands:
         bb = core.buy_below(c, m)
+        if not committed(c, wl.get(c['ticker'])):
+            rows.append({'Company': c['company'], 'Updates': c.get('follow', ''),
+                         'Price': core.money(c['price'], c['currency']), 'Value (bear / base / bull)': 'after your estimate',
+                         'Buy below': '', 'Price vs buy-below': None, 'Decision': 'Your estimate first',
+                         'Checks passed': '', 'Analysed': c.get('analysed', '')})
+            continue
         rows.append({'Company': c['company'], 'Updates': c.get('follow', ''), 'Price': core.money(c['price'], c['currency']),
                      'Value (bear / base / bull)': ' / '.join(core.money(c[k], c['currency']) for k in ('bear', 'base', 'bull')),
                      'Buy below': core.money(bb, c['currency']), 'Price vs buy-below': (c['price'] / bb - 1) * 100,
@@ -264,6 +359,17 @@ def render():
     st.subheader(f"{c['company']}")
     st.caption(f"{c['ticker']} · {c.get('exchange', '')} · {c.get('region', '')} · analysed {c.get('analysed', '')} · "
                f"figures up to {c.get('figures_to', '')}")
+    if not committed(c, entry):
+        st.metric('Price', core.money(c['price'], c['currency']), help=f"Close on {c.get('price_date', '')}")
+        commit_form(c)
+        t = st.tabs(['History', 'Updates', 'Journal'], key='cand_tabs_new')
+        with t[0]:
+            history_charts([h for h in d['history'] if h['company'] == c['company']], c)
+        with t[1]:
+            follow_controls(c, entry)
+        with t[2]:
+            journal_part(c, d['journal'])
+        return
     st.markdown(f":{BADGE[dec]}-badge[{dec}] {MEANING[dec]}")
     bb = core.buy_below(c, m)
     k = st.columns(4)
@@ -280,6 +386,7 @@ def render():
 
     t = st.tabs(['Valuation', '10 checks', 'History', 'Your growth rates', 'Journal'], key='cand_tabs')
     with t[0]:
+        compare(c, scen)
         st.dataframe(pd.DataFrame([{'Scenario': s['scenario'], 'Growth, years 1–10': core.pct(s['growth']),
                                     'Discount rate': core.pct(s['discount_rate']),
                                     'Growth after year 10': core.pct(s['long_term_growth']),

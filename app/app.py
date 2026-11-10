@@ -5,7 +5,7 @@ from datetime import date, timedelta
 import streamlit as st
 
 import core
-from views import candidates, guide, journal, reports, scoreboard, screener, update
+from views import candidates, course, guide, journal, reports, scoreboard, screener, update
 
 st.set_page_config(page_title='Stock Screener', page_icon=':material/query_stats:', layout='wide')
 st.html('<style>' + open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'style.css'), encoding='utf-8').read()
@@ -15,6 +15,7 @@ PAGES = {
     'candidates': st.Page(candidates.render, title='Candidates', icon=':material/star:', url_path='candidates', default=True),
     'scoreboard': st.Page(scoreboard.render, title='Scoreboard', icon=':material/scoreboard:', url_path='scoreboard'),
     'screener': st.Page(screener.render, title='Screener', icon=':material/filter_alt:', url_path='screener'),
+    'course': st.Page(course.render, title='Course', icon=':material/menu_book:', url_path='course'),
     'journal': st.Page(journal.render, title='Journal', icon=':material/edit_note:', url_path='journal'),
     'reports': st.Page(reports.render, title='Add a report', icon=':material/upload_file:', url_path='reports'),
     'update': st.Page(update.render, title='Update data', icon=':material/sync:', url_path='update'),
@@ -79,6 +80,12 @@ if not st.session_state.get('started'):
     elif core.settings().get('program_version') != version and os.listdir(core.USER_REPORTS):
         jobs.start('after_restore')
     core.save_setting(program_version=version)
+    try:  # claims whose target year's figures have come in are checked now
+        import claims
+        if claims.check_all():
+            st.cache_data.clear()
+    except Exception as e:
+        print('checking claims:', e)
 
 # The first start counts as a weekly check (the data in the download is fresh, and a company you add is analysed
 # there and then).

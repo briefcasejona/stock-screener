@@ -30,8 +30,39 @@ def render():
                            'Why': st.column_config.TextColumn(width='large')})
     else:
         st.info('No entries yet.')
+    claims_part()
     cands = d['candidates']
     if cands:
         st.divider()
         name = st.selectbox('Write an entry about', [c['company'] for c in cands])
         journal_form(next(c for c in cands if c['company'] == name), key='_journal_page')
+
+
+def claims_part():
+    import claims
+    allc = claims.load()
+    if not allc:
+        return
+    st.divider()
+    st.subheader('Your claims')
+    r = claims.report(allc)
+    a, b, c = st.columns(3)
+    a.metric('Waiting for figures', r['open'])
+    a2 = r.get('hit')
+    b.metric('Came true', 'n/a' if a2 is None else f"{a2:.0%}", f"of {r['settled']} checked", delta_color='off')
+    nh = r.get('naive_hit')
+    c.metric('Simple forecast right', 'n/a' if nh is None else f"{nh:.0%}",
+             help='The same claims, judged by "the last three years\' trend continues" (for a margin: "it stays where '
+                  'it was"). Your research adds something when your claims come true more often than this.')
+    if r.get('calibration'):
+        st.caption('How sure you were, and how often it came true: ' + '; '.join(
+            f"{k}% sure: {v[0]:.0%} of {v[1]}" for k, v in r['calibration'].items())
+            + '. A few claims say little; this means something after a few dozen.')
+    st.dataframe(pd.DataFrame([{
+        'Made': c['made'], 'Company': c['company'], 'Claim': claims.describe(c), 'Sure': f"{c['confidence']}%",
+        'Result': ('waiting' if c.get('outcome') is None else ('✅ came true' if c['outcome'] else '❌ did not'))
+                  + (f" ({c['actual']:.1%})" if c.get('actual') is not None else ''),
+        'Simple forecast': ('says yes' if c.get('naive_says') else 'says no' if c.get('naive_says') is False else 'n/a'),
+        'Why': c['why']} for c in reversed(allc)]), hide_index=True,
+        column_config={'Company': st.column_config.TextColumn('Company', pinned=True),
+                       'Claim': st.column_config.TextColumn(width='large')})

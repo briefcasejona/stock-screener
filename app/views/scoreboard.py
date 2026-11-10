@@ -10,7 +10,7 @@ import portfolio as P
 from views import data
 
 
-@st.cache_data(ttl=6 * 3600, show_spinner='Getting prices and dividends from Yahoo Finance...')
+@st.cache_data(ttl=15 * 60, show_spinner='Getting prices and dividends from Yahoo Finance...')
 def markets(key, _state):
     """Cached for a few hours; `key` changes when the trades or the index fund change."""
     return P.markets(_state)
@@ -146,7 +146,9 @@ def caps(state, s, paper):
 def record(state):
     st.subheader('Record a trade')
     st.caption(f'Record a trade on the day you make it, or up to {P.BACKDATE_DAYS} days later; an older date would let '
-               'hindsight in. The price is that day\'s closing price on Yahoo Finance unless you fill in what you paid.')
+               'hindsight in. A trade dated today gets the latest price on Yahoo Finance (free, usually about 15 minutes '
+               'behind the exchange); an earlier date gets that day\'s closing price. Paper trades always use that '
+               'price, so practice can\'t pick a flattering one; for a real trade you can fill in what you paid.')
     t1, t2, t3 = st.tabs(['Index fund', 'Buy a candidate', 'Sell'])
     today = date.today()
     lo = today - timedelta(days=P.BACKDATE_DAYS)
@@ -169,7 +171,7 @@ def record(state):
                 a, b, c = st.columns(3)
                 amount = a.number_input('Amount, costs included (€)', 1.0, 1e7, 500.0, 50.0)
                 day = b.date_input('Date', today, min_value=lo, max_value=today, format='DD-MM-YYYY', key='bd')
-                price = c.number_input('Price you paid per share (optional, in its own currency)', 0.0, 1e7, 0.0)
+                price = c.number_input('Price you paid per share (real trades only, optional)', 0.0, 1e7, 0.0)
                 why = st.text_input('Why this company, at this price? (one line, goes in the journal)')
                 unlocked = bool(state['rules'].get('real_unlocked'))
                 kind = st.segmented_control('Money', ['Paper', 'Real'] if unlocked else ['Paper'], default='Paper',
@@ -202,7 +204,7 @@ def record(state):
                 a, b, c = st.columns(3)
                 units = a.number_input('Shares to sell', 0.0, 1e9, 0.0, help='Fractions are fine.')
                 day = b.date_input('Date', today, min_value=lo, max_value=today, format='DD-MM-YYYY', key='sd')
-                price = c.number_input('Price per share (optional, in its own currency)', 0.0, 1e7, 0.0)
+                price = c.number_input('Price you got per share (real trades only, optional)', 0.0, 1e7, 0.0)
                 why = st.text_input('Why sell? (one line, goes in the journal)')
                 if st.form_submit_button('Record the sale', type='primary'):
                     if not why.strip():
@@ -237,7 +239,7 @@ def trades(state):
     rows = [{'Date': t['date'], 'What': {'index': 'Index fund buy', 'buy': 'Buy', 'sell': 'Sell'}[t['kind']]
              + (' (paper)' if P.is_paper(t) else ''),
              'Company': t['company'], 'Euros': t['amount_eur'], 'Costs': t['costs_eur'],
-             'Price': f"{t['price']:,.2f} {t['currency']}", 'Shares': round(t['units'], 4)}
+             'Price': f"{t['price']:,.2f} {t['currency']}" + (f" ({t['price_time'][-5:]})" if t.get('price_time') else ''), 'Shares': round(t['units'], 4)}
             for t in sorted(state['trades'], key=lambda t: (t['date'], t['recorded']), reverse=True)]
     st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True,
                  column_config={'Euros': st.column_config.NumberColumn(format='€%.2f'),
@@ -255,6 +257,26 @@ def trades(state):
                 st.rerun()
 
 
+@st.cache_data(ttl=15 * 60, show_spinner=False)
+def _passes(key, _state):
+    return P.passes_report(_state)
+
+
+def passes(state):
+    if not state.get('passes'):
+        return
+    st.subheader('Companies you said No to')
+    st.caption('Saying no is a decision too. If a company you passed on then trails your index fund, staying away was '
+               'a good call. Prices only, in euros, since the day of your "No".')
+    rows = _passes((tuple((p['ticker'], p['date']) for p in state['passes']), date.today()), state)
+    st.dataframe(pd.DataFrame([{'Company': r['company'], 'Said no on': r['date'], 'The company since': r['stock'] * 100,
+                                'Your index fund since': r['index'] * 100,
+                                'Verdict so far': 'good call' if r['stock'] <= r['index'] else 'it did better'}
+                               for r in rows]), hide_index=True, use_container_width=True,
+                 column_config={'The company since': st.column_config.NumberColumn(format='%+.1f%%'),
+                                'Your index fund since': st.column_config.NumberColumn(format='%+.1f%%')})
+
+
 def render():
     st.title('Scoreboard')
     st.caption('Do your picks beat simply buying your index fund? Record your index fund buys and the companies you '
@@ -266,11 +288,18 @@ def render():
         return
     mk = {}
     if state['trades']:
-        key = (state['rules']['index_symbol'], tuple((t['id'], t['date']) for t in state['trades']), date.today())
+        key = (state['rules']['index_symbol'], tuple((t['id'], t['date']) for t in state['trades']), date.today(),
+               st.session_state.get('price_refresh', 0))
         try:
             mk = markets(key, state)
         except Exception as e:
             st.error(f'Could not get prices from Yahoo Finance ({e}). The score shows again when it answers.')
+        a, b = st.columns([4, 1], vertical_alignment='center')
+        a.caption('Prices: Yahoo Finance, free and usually about 15 minutes behind the exchange; on a trading day the '
+                  'score uses the latest price, and it fetches again every 15 minutes or when you press Refresh.')
+        if b.button('Refresh prices', icon=':material/refresh:'):
+            st.session_state['price_refresh'] = st.session_state.get('price_refresh', 0) + 1
+            st.rerun()
     if mk:
         has_real = any(t['kind'] != 'index' and not P.is_paper(t) for t in state['trades'])
         for paper in ([True, False] if has_real else [True]):
@@ -284,6 +313,7 @@ def render():
         st.info('Start by recording your index fund buys (below), so the caps know how big your portfolio is.')
     record(state)
     trades(state)
+    passes(state)
     st.divider()
     with st.expander('Your rules', icon=':material/rule:'):
         rules_form(state, first=False)

@@ -221,6 +221,11 @@ def run_weekly_check():
     out, err = wl('check')
     if out is not None:
         save_setting(last_check=out['at'], last_check_result=out)
+        try:  # new annual reports may settle claims
+            import claims
+            claims.check_all()
+        except Exception as e:
+            print('checking claims:', e)
     return out, err
 
 
@@ -338,7 +343,8 @@ def own_reports():
 
 # ---------- backups ----------
 
-BACKUP_PARTS = ['journal', 'user_reports', 'pdf_maps', 'added_companies.csv', 'settings.json', 'portfolio.json']
+BACKUP_PARTS = ['journal', 'user_reports', 'pdf_maps', 'added_companies.csv', 'settings.json', 'portfolio.json',
+                'claims.json', 'commitments.json', 'course.json']
 MAX_RESTORE = 500 * 2**20  # a backup that unpacks to more than this is not one of ours
 
 

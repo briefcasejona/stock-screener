@@ -137,6 +137,30 @@ def quote(symbol, day):
     return on(m['close'], d), m['currency'], on(fx, d)
 
 
+def live(symbol):
+    """(price, currency, euros per unit, time) right now: Yahoo Finance's latest minute price, free and usually about
+    15 minutes behind the exchange. Outside trading hours it is the last price of the last session."""
+    import yfinance as yf
+    t = yf.Ticker(symbol)
+    h = t.history(period='5d', interval='1m').dropna(subset=['Close'])
+    if h.empty:
+        raise RuntimeError(f'Yahoo Finance has no recent price for {symbol}')
+    try:
+        cur = t.fast_info['currency']
+    except Exception:
+        cur = None
+    k = 0.01 if cur in ('GBp', 'GBX') else 1.0
+    cur = 'GBP' if cur in ('GBp', 'GBX') else cur
+    when = h.index[-1]
+    eur = 1.0
+    if cur not in (None, 'EUR'):
+        fx = yf.Ticker(f'{cur}EUR=X').history(period='5d', interval='1m').dropna(subset=['Close'])
+        if fx.empty:
+            raise RuntimeError(f'Yahoo Finance has no recent {cur} to euro rate')
+        eur = float(fx['Close'].iloc[-1])
+    return float(h['Close'].iloc[-1]) * k, cur, eur, when.tz_convert('Europe/Amsterdam').strftime('%d-%m-%Y %H:%M')
+
+
 def is_paper(t):
     """A pick recorded on paper (practice: no real money) rather than for real. Index fund buys are always real."""
     return t['kind'] != 'index' and t.get('paper', True)
@@ -154,12 +178,22 @@ def new_trade(state, kind, day, amount=None, units=None, ticker=None, company=No
         symbol, ticker, company = rules['index_symbol'], 'INDEX', rules['index_name']
     elif not paper and not rules.get('real_unlocked'):
         raise ValueError(REAL_LOCKED)
-    p, cur, eur = quote(symbol, day)
-    if price:  # the price you actually paid, in the share's own currency
-        p = float(price)
+    as_of = None
+    if day == date.today():
+        try:
+            p, cur, eur, as_of = live(symbol)
+        except Exception:
+            p, cur, eur = quote(symbol, day)
+    else:
+        p, cur, eur = quote(symbol, day)
+    paper_trade = kind != 'index' and paper
+    if price and not paper_trade:  # the price you actually paid (real trades only), in the share's own currency
+        p, as_of = float(price), None
     t = {'id': uuid.uuid4().hex[:10], 'recorded': datetime.now().isoformat(timespec='seconds'), 'date': day.isoformat(),
          'kind': kind, 'ticker': ticker, 'company': company, 'symbol': symbol, 'currency': cur, 'price': p,
          'eur_per_unit': eur, 'why': why}
+    if as_of:
+        t['price_time'] = as_of
     if kind != 'index':
         t['paper'] = bool(paper)
     if kind in ('index', 'buy'):
@@ -361,3 +395,36 @@ def check_caps(state, new):
     if s['picks_share'] > r['picking_cap'] / 100 + 1e-9:
         raise ValueError(f"After this buy, your picks together would be {s['picks_share']:.1%} of your portfolio; your "
                          f"cap is {r['picking_cap']}%. The rest goes to the index fund.")
+
+
+# ---------- the companies you said "No" to ----------
+
+def add_pass(c, why=''):
+    """Note a "No" (Pass) on candidate `c`: its price today, so the scoreboard can show how it did against the index
+    fund since. Staying away from a company that then trails the index is a good call too."""
+    from refresh_company import find
+    state = load()
+    symbol = find(c['ticker'])[1]['yahoo']
+    if any(p['ticker'] == c['ticker'] and p['date'] == date.today().isoformat() for p in state.get('passes', [])):
+        return
+    state.setdefault('passes', []).append({'date': date.today().isoformat(), 'ticker': c['ticker'],
+                                           'company': c['company'], 'symbol': symbol, 'why': why})
+    save(state)
+
+
+def passes_report(state):
+    """[{company, date, its return, the index fund's return}] since each "No", in euros, prices only."""
+    r = state.get('rules') or DEFAULT_RULES
+    out = []
+    for p in state.get('passes', []):
+        start = (date.fromisoformat(p['date']) - timedelta(days=10)).isoformat()
+        try:
+            m, i = market(p['symbol'], start), market(r['index_symbol'], start)
+            fx = fx_series(m['currency'], start)
+        except Exception:
+            continue
+        today = date.today().isoformat()
+        a = on(m['close'], today) * on(fx, today) / (on(m['close'], p['date']) * on(fx, p['date'])) - 1
+        b = on(i['close'], today) / on(i['close'], p['date']) - 1
+        out.append({'company': p['company'], 'date': p['date'], 'stock': a, 'index': b})
+    return out

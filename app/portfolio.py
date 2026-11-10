@@ -28,6 +28,8 @@ DEFAULT_RULES = {'index_symbol': 'VWCE.DE', 'index_name': INDEX_CHOICES['VWCE.DE
                  'broker_fee': 3.0, 'fx_cost': 0.25, 'withholding': 15}
 BACKDATE_DAYS = 7  # a trade can be recorded up to a week late, never further back: no picking with hindsight
 UNDO_HOURS = 24  # a trade recorded by mistake can be removed the same day; after that it stays
+REAL_LOCKED = ('Real picks open up once you have finished the research course (5 write-ups of your own). Until then, '
+               'record picks on paper: the practice counts, and your real money stays in the index fund.')
 
 
 # ---------- the file ----------
@@ -135,8 +137,13 @@ def quote(symbol, day):
     return on(m['close'], d), m['currency'], on(fx, d)
 
 
+def is_paper(t):
+    """A pick recorded on paper (practice: no real money) rather than for real. Index fund buys are always real."""
+    return t['kind'] != 'index' and t.get('paper', True)
+
+
 def new_trade(state, kind, day, amount=None, units=None, ticker=None, company=None, symbol=None, price=None, why='',
-              snapshot=None):
+              snapshot=None, paper=True):
     """A buy (`amount` euros, costs included) or a sell (`units`). Returns the trade; raises ValueError with a reason
     when it breaks a rule (the caps, the date, selling more than you have)."""
     rules = state['rules']
@@ -145,12 +152,16 @@ def new_trade(state, kind, day, amount=None, units=None, ticker=None, company=No
         raise ValueError(err)
     if kind == 'index':
         symbol, ticker, company = rules['index_symbol'], 'INDEX', rules['index_name']
+    elif not paper and not rules.get('real_unlocked'):
+        raise ValueError(REAL_LOCKED)
     p, cur, eur = quote(symbol, day)
     if price:  # the price you actually paid, in the share's own currency
         p = float(price)
     t = {'id': uuid.uuid4().hex[:10], 'recorded': datetime.now().isoformat(timespec='seconds'), 'date': day.isoformat(),
          'kind': kind, 'ticker': ticker, 'company': company, 'symbol': symbol, 'currency': cur, 'price': p,
          'eur_per_unit': eur, 'why': why}
+    if kind != 'index':
+        t['paper'] = bool(paper)
     if kind in ('index', 'buy'):
         amount = float(amount)
         c = costs(rules, amount, cur)
@@ -160,7 +171,7 @@ def new_trade(state, kind, day, amount=None, units=None, ticker=None, company=No
         if kind == 'buy':
             check_caps(state, t)
     else:
-        held = units_held(state, ticker, day.isoformat())
+        held = units_held(state, ticker, day.isoformat(), paper)
         units = float(units)
         if units <= 0 or units > held + 1e-9:
             raise ValueError(f'You hold {held:.4f} shares of {company}; you can sell up to that.')
@@ -171,8 +182,8 @@ def new_trade(state, kind, day, amount=None, units=None, ticker=None, company=No
     save(state)
     if kind != 'index':
         core.add_journal_entry({'date': t['date'], 'ticker': ticker, 'company': company, 'price': p, 'currency': cur,
-                                'decision': 'Bought' if kind == 'buy' else 'Sold',
-                                'why': f"{'Bought' if kind == 'buy' else 'Sold'} on the scoreboard: "
+                                'decision': ('Bought' if kind == 'buy' else 'Sold') + (' (paper)' if paper else ''),
+                                'why': f"{'Bought' if kind == 'buy' else 'Sold'} {'on paper' if paper else 'for real'}: "
                                        f"{t['amount_eur']:,.2f} euros ({t['units']:.4f} shares at {p:,.2f} {cur}). {why}",
                                 'change_mind': '', 'next_check': '', 'author': 'You', **(snapshot or {})})
     return t
@@ -195,10 +206,10 @@ def remove(state, trade_id):
                                 'change_mind': '', 'next_check': '', 'author': 'You'})
 
 
-def units_held(state, ticker, day):
+def units_held(state, ticker, day, paper=None):
     n = 0.0
     for t in state['trades']:
-        if t['ticker'] == ticker and t['date'] <= day:
+        if t['ticker'] == ticker and t['date'] <= day and (paper is None or is_paper(t) == paper):
             n += t['units'] if t['kind'] in ('buy', 'index') else -t['units']
     return n
 
@@ -243,8 +254,9 @@ class Book:
         return self.cash + sum(n * self.eur(s, day) for s, n in self.units.items() if n > 1e-12)
 
 
-def replay(state, mk, until):
-    """Walk through the trades up to `until` (iso). Returns (picks, shadow, index, money in, per-company money in)."""
+def replay(state, mk, until, paper=True):
+    """Walk through the trades up to `until` (iso), the paper picks or the real ones (`paper`) with the index fund buys.
+    Returns (picks, shadow, index, money in, per-company money in)."""
     r = state['rules']
     picks, shadow, index = Book(mk, r['withholding']), Book(mk, 0), Book(mk, 0)
     sym = r['index_symbol']
@@ -253,6 +265,8 @@ def replay(state, mk, until):
     for t in sorted(state['trades'], key=lambda t: (t['date'], t['recorded'])):
         if t['date'] > until:
             break
+        if t['kind'] != 'index' and is_paper(t) != paper:
+            continue
         for b in (picks, shadow, index):
             b.dividends(last, t['date'])
         last = t['date']
@@ -281,14 +295,14 @@ def replay(state, mk, until):
     return picks, shadow, index, money_in, put_in
 
 
-def score(state, mk, today=None):
-    """Everything the scoreboard page shows, as of `today` (iso, default today)."""
+def score(state, mk, today=None, paper=True):
+    """Everything the scoreboard page shows for the paper or the real picks, as of `today` (iso, default today)."""
     today = today or date.today().isoformat()
     r = state['rules']
-    picks, shadow, index, money_in, put_in = replay(state, mk, today)
+    picks, shadow, index, money_in, put_in = replay(state, mk, today, paper)
     pv, sv, iv = picks.value(today), shadow.value(today), index.value(today)
     total = pv + iv
-    buys = [t for t in state['trades'] if t['kind'] == 'buy']
+    buys = [t for t in state['trades'] if t['kind'] == 'buy' and is_paper(t) == paper]
     first = min((t['date'] for t in buys), default=None)
     holdings = []
     for s, n in picks.units.items():
@@ -313,9 +327,9 @@ def score(state, mk, today=None):
     return out
 
 
-def timeline(state, mk, points=60):
+def timeline(state, mk, points=60, paper=True):
     """[(iso date, picks value, shadow value, money in)] from the first pick to today, for the chart."""
-    buys = [t['date'] for t in state['trades'] if t['kind'] == 'buy']
+    buys = [t['date'] for t in state['trades'] if t['kind'] == 'buy' and is_paper(t) == paper]
     if not buys:
         return []
     d0, d1 = date.fromisoformat(min(buys)), date.today()
@@ -325,7 +339,7 @@ def timeline(state, mk, points=60):
         days.append(d1)
     out = []
     for d in days:
-        p, s, _, m, _ = replay(state, mk, d.isoformat())
+        p, s, _, m, _ = replay(state, mk, d.isoformat(), paper)
         out.append((d.isoformat(), p.value(d.isoformat()), s.value(d.isoformat()), m))
     return out
 
@@ -339,7 +353,7 @@ def check_caps(state, new):
                          'portfolio, so the program needs to know how big it is.')
     trial = {**state, 'trades': state['trades'] + [new]}
     mk = markets(trial)
-    s = score(trial, mk, new['date'])
+    s = score(trial, mk, new['date'], is_paper(new))
     mine = sum(h['value'] for h in s['holdings'] if h['ticker'] == new['ticker'])
     if s['total'] and mine / s['total'] > r['company_cap'] / 100 + 1e-9:
         raise ValueError(f"After this buy, {new['company']} would be {mine / s['total']:.1%} of your portfolio; your "

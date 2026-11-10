@@ -80,14 +80,14 @@ def rules_form(state, first):
             st.rerun()
 
 
-def headline(state, s):
+def headline(state, s, paper):
     r = state['rules']
     if not s.get('money_in'):
-        st.info('No picks yet. While you have none, the scoreboard has nothing to compare: all your money is in the '
-                'index fund, which is the default anyway.')
+        st.info('No paper picks yet. While you have none, the scoreboard has nothing to compare: all your money is in '
+                'the index fund, which is the default anyway.' if paper else 'No real picks yet.')
         return
     a, b, c = st.columns(3)
-    a.metric('Your picks', eur(s['picks_value']), f"{s['picks_return']:+.1%} on {eur(s['money_in'])} put in")
+    a.metric('Your paper picks' if paper else 'Your real picks', eur(s['picks_value']), f"{s['picks_return']:+.1%} on {eur(s['money_in'])} put in")
     b.metric(f"Index fund, same money and days", eur(s['shadow_value']),
              f"{s['shadow_return']:+.1%} on {eur(s['money_in'])} put in")
     diff = s['picks_value'] - s['shadow_value']
@@ -109,8 +109,8 @@ def headline(state, s):
                     f"{abs(s['gap_points']):.1f} points {where} it.")
 
 
-def chart(state, mk):
-    pts = P.timeline(state, mk)
+def chart(state, mk, paper):
+    pts = P.timeline(state, mk, paper=paper)
     if len(pts) < 2:
         return
     rows = [{'Date': d, 'Value': v, 'Line': 'Your picks'} for d, v, _, _ in pts]
@@ -127,10 +127,10 @@ def chart(state, mk):
         use_container_width=True)
 
 
-def caps(state, s):
+def caps(state, s, paper):
     r = state['rules']
-    st.subheader('Caps')
-    st.write(f"All picks together: **{s['picks_share']:.1%}** of your portfolio ({eur(s['total'])}), cap "
+    st.markdown('**Caps**')
+    st.write(f"All {'paper' if paper else 'real'} picks together: **{s['picks_share']:.1%}** of your portfolio ({eur(s['total'])}), cap "
              f"{r['picking_cap']}%.")
     st.progress(min(s['picks_share'] / (r['picking_cap'] / 100), 1.0))
     if s['holdings']:
@@ -171,6 +171,11 @@ def record(state):
                 day = b.date_input('Date', today, min_value=lo, max_value=today, format='DD-MM-YYYY', key='bd')
                 price = c.number_input('Price you paid per share (optional, in its own currency)', 0.0, 1e7, 0.0)
                 why = st.text_input('Why this company, at this price? (one line, goes in the journal)')
+                unlocked = bool(state['rules'].get('real_unlocked'))
+                kind = st.segmented_control('Money', ['Paper', 'Real'] if unlocked else ['Paper'], default='Paper',
+                                            required=True, key='buy_kind')
+                if not unlocked:
+                    st.caption(P.REAL_LOCKED)
                 if st.form_submit_button('Record the buy', type='primary'):
                     if not why.strip():
                         st.error('Write one line on why. It is the line you will check yourself against later.')
@@ -178,19 +183,22 @@ def record(state):
                         do(lambda: P.new_trade(state, 'buy', day, amount=amount, ticker=tk, company=names[tk],
                                                symbol=symbol_of(tk), price=price or None, why=why.strip(),
                                                snapshot={k: cand[tk].get(k) for k in
-                                                         ('implied_growth', 'bear', 'base', 'bull')}),
+                                                         ('implied_growth', 'bear', 'base', 'bull')},
+                                               paper=kind == 'Paper'),
                            'Recorded, and noted in the journal.')
-    held = {}
+    held = {}  # (ticker, paper): a trade of it
     for t in state['trades']:
         if t['kind'] != 'index':
-            held.setdefault(t['ticker'], t)
-    held = {k: t for k, t in held.items() if P.units_held(state, k, today.isoformat()) > 1e-9}
+            held.setdefault((t['ticker'], P.is_paper(t)), t)
+    held = {k: t for k, t in held.items() if P.units_held(state, k[0], today.isoformat(), k[1]) > 1e-9}
     with t3:
         if not held:
             st.info('Nothing to sell.')
         else:
             with st.form('pick_sell', clear_on_submit=True):
-                tk = st.selectbox('Company', list(held), format_func=lambda k: held[k]['company'])
+                key = st.selectbox('Company', list(held), format_func=lambda k: held[k]['company']
+                                   + (' (paper)' if k[1] else ' (real)'))
+                tk, on_paper = key
                 a, b, c = st.columns(3)
                 units = a.number_input('Shares to sell', 0.0, 1e9, 0.0, help='Fractions are fine.')
                 day = b.date_input('Date', today, min_value=lo, max_value=today, format='DD-MM-YYYY', key='sd')
@@ -200,9 +208,10 @@ def record(state):
                     if not why.strip():
                         st.error('Write one line on why.')
                     else:
-                        t = held[tk]
+                        t = held[key]
                         do(lambda: P.new_trade(state, 'sell', day, units=units, ticker=tk, company=t['company'],
-                                               symbol=t['symbol'], price=price or None, why=why.strip()),
+                                               symbol=t['symbol'], price=price or None, why=why.strip(),
+                                               paper=on_paper),
                            'Recorded, and noted in the journal.')
 
 
@@ -225,7 +234,8 @@ def trades(state):
     if not state['trades']:
         return
     st.subheader('Every trade')
-    rows = [{'Date': t['date'], 'What': {'index': 'Index fund buy', 'buy': 'Buy', 'sell': 'Sell'}[t['kind']],
+    rows = [{'Date': t['date'], 'What': {'index': 'Index fund buy', 'buy': 'Buy', 'sell': 'Sell'}[t['kind']]
+             + (' (paper)' if P.is_paper(t) else ''),
              'Company': t['company'], 'Euros': t['amount_eur'], 'Costs': t['costs_eur'],
              'Price': f"{t['price']:,.2f} {t['currency']}", 'Shares': round(t['units'], 4)}
             for t in sorted(state['trades'], key=lambda t: (t['date'], t['recorded']), reverse=True)]
@@ -247,8 +257,9 @@ def trades(state):
 
 def render():
     st.title('Scoreboard')
-    st.caption(f'Do your picks beat simply buying your index fund? Record what you buy (on paper or for real), and the '
-               f'program keeps score. {core.DISCLAIMER}')
+    st.caption('Do your picks beat simply buying your index fund? Record your index fund buys and the companies you '
+               'pick. While you learn, picks are on paper: as if part of your monthly money had gone into the company '
+               f'instead of the index fund, without risking it. The program keeps score. {core.DISCLAIMER}')
     state = P.load()
     if not state.get('rules'):
         rules_form(state, first=True)
@@ -261,10 +272,14 @@ def render():
         except Exception as e:
             st.error(f'Could not get prices from Yahoo Finance ({e}). The score shows again when it answers.')
     if mk:
-        s = P.score(state, mk)
-        headline(state, s)
-        chart(state, mk)
-        caps(state, s)
+        has_real = any(t['kind'] != 'index' and not P.is_paper(t) for t in state['trades'])
+        for paper in ([True, False] if has_real else [True]):
+            if has_real:
+                st.subheader('Paper picks' if paper else 'Real picks')
+            s = P.score(state, mk, paper=paper)
+            headline(state, s, paper)
+            chart(state, mk, paper)
+            caps(state, s, paper)
     elif not state['trades']:
         st.info('Start by recording your index fund buys (below), so the caps know how big your portfolio is.')
     record(state)

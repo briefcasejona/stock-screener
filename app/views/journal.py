@@ -26,7 +26,8 @@ def render():
             'Growth the price assumed': core.pct(e.get('implied_growth')), 'Why': e['why'],
             'What would change my mind': e.get('change_mind', ''), 'Next check': e.get('next_check', ''),
             'By': e.get('author', '')} for e in entries]), hide_index=True,
-            column_config={'Why': st.column_config.TextColumn(width='large')})
+            column_config={'Company': st.column_config.TextColumn('Company', pinned=True),
+                           'Why': st.column_config.TextColumn(width='large')})
     else:
         st.info('No entries yet.')
     cands = d['candidates']

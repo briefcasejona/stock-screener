@@ -250,7 +250,8 @@ def render():
     ev = st.dataframe(pd.DataFrame(rows), hide_index=True, on_select='rerun', selection_mode='single-row',
                       selection_default={'selection': {'rows': [default]}},
                       key=f"cand_table_{ss.get('cand_gen', 0)}_{len(cands)}",
-                      column_config={'Price vs buy-below': st.column_config.NumberColumn(format='%+.0f%%',
+                      column_config={'Company': st.column_config.TextColumn('Company', pinned=True),
+                                     'Price vs buy-below': st.column_config.NumberColumn(format='%+.0f%%',
                                      help='How far the price is above (+) or below (−) the buy-below price.')})
     sel = ev.selection.rows[0] if ev.selection.rows and ev.selection.rows[0] < len(cands) else default
     c = cands[sel]

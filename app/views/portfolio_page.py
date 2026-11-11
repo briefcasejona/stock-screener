@@ -187,8 +187,14 @@ def render():
     split_part(s, mk, rows, cv, hv + cv)
     if rows:
         total = hv + cv
-        show = pd.DataFrame([{**{k: v for k, v in r.items() if not k.startswith('_')},
-                              'Weight': r['Value'] / total * 100 if total else None} for r in rows])
+        table = [{**{k: v for k, v in r.items() if not k.startswith('_')},
+                  'Weight': r['Value'] / total * 100 if total else None} for r in rows]
+        if abs(cv) >= 0.005:  # cash counts in the weights, so it gets its own row
+            _, cash_now = H.positions(s)
+            table.append({'Holding': 'Cash', 'Kind': 'Cash',
+                          'At': ', '.join(sorted({b for (b, c), a in cash_now.items() if abs(a) >= 0.005})),
+                          'Value': cv, 'Weight': cv / total * 100 if total else None})
+        show = pd.DataFrame(table)
         money = st.column_config.NumberColumn(format='€%,.2f')
         st.dataframe(show, hide_index=True, use_container_width=True, column_config={
             'Holding': st.column_config.TextColumn(pinned=True), 'Value': money, 'Gain €': money, 'Costs paid': money,

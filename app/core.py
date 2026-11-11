@@ -19,7 +19,8 @@ SCREENER = os.path.join(ROOT, 'screener')
 PLAYBOOK = os.path.join(ROOT, 'playbook')
 CACHE = os.path.join(ROOT, 'cache')
 # Your own work lives outside the program folder, so replacing the program with a newer version can't touch it
-DATA = os.environ.get('STOCK_DATA', os.path.join(os.path.expanduser('~'), 'StockScreener data'))
+import datafolder  # noqa: E402
+DATA = datafolder.current()  # "StockScreener data" in your home folder, unless you moved it (Update data page)
 JOURNAL_DIR = os.path.join(DATA, 'journal')
 USER_REPORTS = os.path.join(DATA, 'user_reports')
 PDF_MAPS = os.path.join(DATA, 'pdf_maps')

@@ -419,10 +419,16 @@ def render():
         ss['cand_ticker'] = focus
         ss['cand_gen'] = ss.get('cand_gen', 0) + 1
     default = next((i for i, c in enumerate(cands) if c['ticker'] == ss.get('cand_ticker')), 0)
-    ev = st.dataframe(pd.DataFrame(rows), hide_index=True, on_select='rerun', selection_mode='single-row',
+    table = pd.DataFrame(rows)
+    # each text column as wide as its longest value, so nothing is cut off (about 8 pixels a character)
+    widths = {col: st.column_config.TextColumn(col, width=int(max(len(col), *(len(str(v)) for v in table[col])) * 8.5 + 28))
+              for col in table.columns if table[col].dtype == object}
+    ev = st.dataframe(table, hide_index=True, on_select='rerun', selection_mode='single-row',
                       selection_default={'selection': {'rows': [default]}},
                       key=f"cand_table_{ss.get('cand_gen', 0)}_{len(cands)}",
-                      column_config={'Company': st.column_config.TextColumn('Company', pinned=True),
+                      column_config=widths | {'Company': st.column_config.TextColumn(
+                                         'Company', pinned=True, width=widths['Company']['width']
+                                         if isinstance(widths.get('Company'), dict) else None),
                                      'Price vs buy-below': st.column_config.NumberColumn(format='%+.0f%%',
                                      help='How far the price is above (+) or below (−) the buy-below price.')})
     sel = ev.selection.rows[0] if ev.selection.rows and ev.selection.rows[0] < len(cands) else default

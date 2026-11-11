@@ -43,6 +43,8 @@ with st.sidebar:
         import signal
         import threading
         st.info('The program has stopped. You can close this window.')
+        import datafolder
+        datafolder.release(core.DATA)
         threading.Timer(1.0, lambda: os.kill(os.getpid(), signal.SIGTERM)).start()
     st.caption(core.DISCLAIMER)
 
@@ -68,6 +70,21 @@ def first_download_banner():
             jobs.start('first')
             st.rerun(scope='app')
 
+
+@st.fragment(run_every=600)
+def one_computer_at_a_time():
+    """With your data in Google Drive (or similar): warn when the other computer has it open, and note that this one
+    does (refreshed every 10 minutes while the program runs)."""
+    import datafolder
+    other = datafolder.other_user(core.DATA)
+    if other:
+        st.warning(f"Your data is also open on **{other[0]}** (seen {other[1]:%H:%M}). Close the program there first: "
+                   'used on two computers at once, changes from one can overwrite the other.', icon=':material/devices:')
+    else:
+        datafolder.mark_in_use(core.DATA)
+
+
+one_computer_at_a_time()
 
 # once per session: a backup a day, and after an update, your own reports are read into the new version's screener
 if not st.session_state.get('started'):

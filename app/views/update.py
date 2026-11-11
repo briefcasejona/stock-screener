@@ -145,3 +145,53 @@ def render():
                 st.success(msg)
         except (ValueError, zipfile.BadZipFile) as e:
             st.error(f'Not restored: {e}')
+
+    st.divider()
+    data_folder_part()
+
+
+def data_folder_part():
+    import datafolder
+    st.subheader('Your data on two computers')
+    st.write(f'Your work is in **{core.DATA}**. To use it on a second computer, keep it in a folder that Google Drive '
+             'for desktop (or OneDrive, Dropbox) syncs, and point the program on both computers at it.')
+    with st.expander('How it works, step by step'):
+        st.markdown(
+            '1. On **both** computers, install **Google Drive for desktop** (google.com/drive/download) and sign in '
+            'with the same Google account. It adds a "Google Drive" drive (on Windows usually **G:**, with a folder '
+            '"My Drive"; on a Mac under Locations in Finder).\n'
+            '2. On the computer that has your data now: below, pick the Google Drive folder and press **Move my data '
+            'there**. Then restart the program.\n'
+            '3. Wait until Google Drive has synced (its icon in the taskbar or menu bar stops turning).\n'
+            '4. On the other computer: install this program, pick the same Google Drive folder below, press **Use the '
+            'data that is already there**, and restart the program.\n\n'
+            'Use the program on **one computer at a time**, and quit it (button on the left) before switching. If '
+            'the other computer still has it open, the program warns you at the top of the page.')
+    found = datafolder.cloud_folders()
+    opts = [p for _, p in found] + ['Another folder...']
+    labels = {p: label for label, p in found}
+    pick = st.selectbox('Folder to keep your data in', opts, format_func=lambda p: labels.get(p, p),
+                        help='The program makes a "StockScreener data" folder inside it.')
+    folder = st.text_input('Folder', placeholder=r'for example G:\My Drive') if pick == 'Another folder...' else pick
+    if not found:
+        st.caption('No Google Drive, OneDrive or Dropbox folder found on this computer. Install Google Drive for '
+                   'desktop first, or type a folder.')
+    a, b = st.columns(2)
+    if a.button('Move my data there', type='primary', disabled=not folder):
+        try:
+            dst = datafolder.move(folder)
+            st.success(f'Your data is copied to {dst}. Quit the program (button on the left) and start it again to use it. '
+                       f'The old folder ({core.DATA}) stays as a spare copy; you can delete it once all works.')
+        except (ValueError, OSError) as e:
+            st.error(str(e))
+    if b.button('Use the data that is already there', disabled=not folder):
+        try:
+            dst = datafolder.use(folder)
+            st.success(f'This computer now uses {dst}. Quit the program (button on the left) and start it again.')
+        except (ValueError, OSError) as e:
+            st.error(str(e))
+    if core.DATA != datafolder.DEFAULT:
+        if st.button('Go back to the folder on this computer only'):
+            datafolder.back_to_default()
+            st.success(f'After a restart this computer uses {datafolder.DEFAULT} again. Your data in {core.DATA} stays '
+                       'where it is; copy it back with a backup (above) if you need it.')

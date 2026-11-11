@@ -169,6 +169,17 @@ def serve(port):
         'browser_gatherUsageStats': False,
     }
     config._main_script_path = script
+    import threading
+
+    def warm_up():  # load the heavy libraries while the window opens, so the first page shows sooner
+        try:
+            import pandas, altair, yfinance  # noqa: F401,E401
+            sys.path.insert(0, APP)
+            import core  # noqa: F401
+            from views import candidates, scoreboard, screener, journal, course  # noqa: F401
+        except Exception:
+            pass
+    threading.Thread(target=warm_up, daemon=True).start()
     if os.environ.get('STOCK_STOP_WHEN_CLOSED') == '1':
         watch_windows()
     bootstrap.load_config_options(flag_options=flags)
@@ -265,19 +276,21 @@ def launch():
     if port:  # already running: another window on it
         open_window(f'http://127.0.0.1:{port}')
         return 0
-    if FROZEN and os.environ.get('STOCK_NO_UPDATE') != '1' and not job_running():
-        import updater
-        if updater.update_if_available(version(), BASE):
-            return 0  # the new version opens itself when it is installed
+    # the program starts while the update check asks GitHub, so the window opens sooner
     port = free_port()
     server = subprocess.Popen(worker_cmd('--serve', str(port)), stdin=subprocess.DEVNULL, stdout=sys.stdout,
                               stderr=sys.stdout, env={**os.environ, 'STOCK_STOP_WHEN_CLOSED': '1'}, **hidden())
-    for _ in range(240):  # wait until it answers (the first start after installing takes longest)
+    if FROZEN and os.environ.get('STOCK_NO_UPDATE') != '1' and not job_running():
+        import updater
+        if updater.update_if_available(version(), BASE, before_install=lambda: stop_process(server)):
+            stop_process(server)
+            return 0  # the new version opens itself when it is installed
+    for _ in range(1200):  # wait until it answers (the first start after installing takes longest)
         if healthy(port):
             break
         if server.poll() is not None:
             raise RuntimeError(f'the program stopped while starting (exit code {server.returncode}); see {LOG}')
-        time.sleep(0.5)
+        time.sleep(0.1)
     else:
         stop_process(server)
         raise RuntimeError('the program did not start within two minutes')

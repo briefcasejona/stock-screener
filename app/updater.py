@@ -177,7 +177,7 @@ def run_with_window(title, work):
     return result.get('value')
 
 
-def update_if_available(current, base, log=print, relaunch=True, wait=False, window=True):
+def update_if_available(current, base, log=print, relaunch=True, wait=False, window=True, before_install=None):
     """The whole update at start-up. Returns True when a newer version is being installed (the caller exits so
     the new version can take over), False when the current version should simply start."""
     try:
@@ -188,6 +188,8 @@ def update_if_available(current, base, log=print, relaunch=True, wait=False, win
     if not info:
         return False
     log(f'updating from {current} to {info["version"]}')
+    if before_install:  # e.g. stop the program that was already starting
+        before_install()
     folder = os.path.join(base, 'update')
 
     def work(say):

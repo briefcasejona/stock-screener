@@ -5,7 +5,7 @@ from datetime import date, timedelta
 import streamlit as st
 
 import core
-from views import candidates, course, guide, journal, reports, scoreboard, screener, update
+from views import candidates, course, guide, journal, portfolio_page, reports, scoreboard, screener, update
 
 st.set_page_config(page_title='Stock Screener', page_icon=':material/query_stats:', layout='wide')
 st.html('<style>' + open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'style.css'), encoding='utf-8').read()
@@ -14,6 +14,7 @@ st.html('<style>' + open(os.path.join(os.path.dirname(os.path.abspath(__file__))
 PAGES = {
     'candidates': st.Page(candidates.render, title='Candidates', icon=':material/star:', url_path='candidates', default=True),
     'scoreboard': st.Page(scoreboard.render, title='Scoreboard', icon=':material/scoreboard:', url_path='scoreboard'),
+    'portfolio': st.Page(portfolio_page.render, title='Portfolio', icon=':material/account_balance:', url_path='portfolio'),
     'screener': st.Page(screener.render, title='Screener', icon=':material/filter_alt:', url_path='screener'),
     'course': st.Page(course.render, title='Course', icon=':material/menu_book:', url_path='course'),
     'journal': st.Page(journal.render, title='Journal', icon=':material/edit_note:', url_path='journal'),

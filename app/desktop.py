@@ -252,7 +252,7 @@ def open_window(url):
     browser = find_browser()
     if browser:
         print(f'opening a window: {os.path.basename(browser)} --app={url}')
-        subprocess.Popen([browser, f'--app={url}', '--window-size=1400,950'], stdin=subprocess.DEVNULL,
+        subprocess.Popen([browser, f'--app={url}', '--start-maximized'], stdin=subprocess.DEVNULL,
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         return
     print(f'no Edge, Chrome or Brave: opening {url} in the normal browser')

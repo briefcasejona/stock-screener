@@ -148,6 +148,8 @@ def render():
 
     st.divider()
     data_folder_part()
+    st.divider()
+    phone_part()
 
 
 def data_folder_part():
@@ -195,3 +197,71 @@ def data_folder_part():
             datafolder.back_to_default()
             st.success(f'After a restart this computer uses {datafolder.DEFAULT} again. Your data in {core.DATA} stays '
                        'where it is; copy it back with a backup (above) if you need it.')
+
+
+def phone_part():
+    import phone
+    import phone_view
+    from streamlit import config
+    st.subheader('On your phone')
+    st.write('Two private ways, nothing is put on the internet: the **full program** over Tailscale (a free private '
+             'network of only your own devices) while this computer is on, and a **read-only phone view** (a PDF) in '
+             'your data folder that you can open in the Google Drive app, also when the computer is off.')
+
+    st.markdown('**The full program on your phone**')
+    ip = phone.address()
+    listening = config.get_option('server.address')
+    if ip and listening == ip:
+        full, plain = phone.phone_link()
+        st.success(f'Your phone can open the program now. In Safari on your phone (with Tailscale on), go to '
+                   f'**{full}**' + (f' (or **{plain}**)' if plain != full else '') + '.', icon=':material/smartphone:')
+    elif phone.enabled() and not ip:
+        st.warning('Phone use is on, but Tailscale is not running or not signed in on this computer. Start Tailscale, '
+                   'then quit the program and start it again.', icon=':material/wifi_off:')
+    elif phone.enabled():
+        st.info('Phone use is on. Quit the program (button on the left) and start it again to open it to your phone.')
+    on = st.toggle('Let my phone open the program (over Tailscale only)', value=phone.enabled(),
+                   help='Kept per computer. Takes effect when you start the program again.')
+    if on != phone.enabled():
+        phone.set_enabled(on)
+        st.rerun()
+    with st.expander('How to set it up, step by step'):
+        st.markdown(
+            '1. On this computer, install **Tailscale** (tailscale.com/download) and sign in. Use an account only you '
+            'use: every device signed in to it can open the program.\n'
+            '2. On your iPhone, install the **Tailscale** app from the App Store and sign in with the **same** account. '
+            'Allow it to add a VPN configuration when iOS asks.\n'
+            '3. Turn on the switch above, then quit the program (button on the left) and start it again.\n'
+            '4. If Windows asks whether to allow the program on networks, tick **both** boxes (private and public) and '
+            'allow it. Tailscale\'s network can count as "public" on Windows. The program listens only on its '
+            'Tailscale address, so your Wi-Fi and the internet still can\'t reach it.\n'
+            '5. On your iPhone: switch Tailscale on, open Safari, go to the address shown above, then Share → '
+            '**Add to Home Screen**, so it opens like an app.\n\n'
+            'The computer must be **on and awake** with the program running. With phone use on, closing the window '
+            'here does not stop the program; use **Quit** on the left. To use it while you are away, set this '
+            'computer not to sleep (Windows: Settings → System → Power → Sleep: Never, when plugged in).')
+
+    st.markdown('**The read-only phone view**')
+    pdf = phone_view.path()
+    try:
+        from datetime import datetime
+        made = datetime.fromtimestamp(os.path.getmtime(pdf))
+        st.write(f'**{phone.PDF_NAME}** in your data folder, last made {made:%d %b %Y, %H:%M}. A fresh copy is made '
+                 'every 10 minutes while the program runs. It shows your candidates, the scoreboard, your No and Wait '
+                 'decisions, course progress and the latest journal entries, with prices as of when it was made.')
+    except OSError:
+        st.write(f'**{phone.PDF_NAME}** is made in your data folder every 10 minutes while the program runs.')
+    import datafolder
+    if core.DATA == datafolder.DEFAULT:
+        st.caption('Your data folder is on this computer only, so your phone can\'t see the PDF yet. Move your data to '
+                   'Google Drive (above) to read it in the Google Drive app.')
+    else:
+        st.caption(f'On your phone: Google Drive app → the "{datafolder.NAME}" folder → {phone.PDF_NAME}. Tip: star it '
+                   '(⋯ → Add to Starred) to find it quickly.')
+    if st.button('Make the phone view now', icon=':material/picture_as_pdf:'):
+        with st.spinner('Making the phone view (it fetches today\'s prices)...'):
+            try:
+                phone_view.write()
+                st.success('Done.')
+            except Exception as e:
+                st.error(f'Could not make it: {e}')

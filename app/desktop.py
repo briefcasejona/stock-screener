@@ -155,16 +155,20 @@ def watch_windows(grace=20, first=180):
     threading.Thread(target=run, daemon=True).start()
 
 
-def serve(port):
-    """Run Streamlit in this process (it must have the main thread), as `streamlit run app.py` would."""
+def serve(port, host='127.0.0.1'):
+    """Run Streamlit in this process (it must have the main thread), as `streamlit run app.py` would. `host` is
+    127.0.0.1 (only this computer), or this computer's Tailscale address when "Use on my phone" is on."""
     from streamlit import config
+    sys.path.insert(0, APP)
+    import phone
+    hosts = ['127.0.0.1', 'localhost'] if host == '127.0.0.1' else [host, *phone.names()]
     from streamlit.web import bootstrap
     os.chdir(APP)  # Streamlit reads .streamlit/config.toml from here
     script = os.path.join(APP, 'app.py')
     flags = {  # Streamlit's command-line spelling: section_option
         'global_developmentMode': False,  # the installed app is not a developer's copy of Streamlit
-        'server_port': port, 'server_address': '127.0.0.1', 'server_headless': True,
-        'server_allowedHosts': ['127.0.0.1', 'localhost'], 'server_enableXsrfProtection': True,
+        'server_port': port, 'server_address': host, 'server_headless': True,
+        'server_allowedHosts': hosts, 'server_enableXsrfProtection': True,
         'server_fileWatcherType': 'none', 'server_runOnSave': False, 'server_maxUploadSize': 300,
         'browser_gatherUsageStats': False,
     }
@@ -180,7 +184,8 @@ def serve(port):
         except Exception:
             pass
     threading.Thread(target=warm_up, daemon=True).start()
-    if os.environ.get('STOCK_STOP_WHEN_CLOSED') == '1':
+    # with phone use on, the program keeps running when its window here is closed (Quit stops it)
+    if os.environ.get('STOCK_STOP_WHEN_CLOSED') == '1' and host == '127.0.0.1':
         watch_windows()
     bootstrap.load_config_options(flag_options=flags)
     bootstrap.run(script, False, [], flags)
@@ -195,28 +200,30 @@ def run_script(path, args):
 
 # ---------- the launcher ----------
 
-def healthy(port, timeout=1.0):
+def healthy(port, timeout=1.0, host='127.0.0.1'):
     try:
-        with urllib.request.urlopen(f'http://127.0.0.1:{port}/_stcore/health', timeout=timeout) as r:
+        with urllib.request.urlopen(f'http://{host}:{port}/_stcore/health', timeout=timeout) as r:
             return r.read().strip() == b'ok'
     except Exception:
         return False
 
 
-def free_port(start=8501):
+def free_port(start=8501, host='127.0.0.1'):
     for port in range(start, start + 50):
         with socket.socket() as s:
-            if s.connect_ex(('127.0.0.1', port)):
+            if s.connect_ex((host, port)):
                 return port
-    raise RuntimeError('no free port between 8501 and 8550')
+    raise RuntimeError(f'no free port between {start} and {start + 49}')
 
 
 def running_port():
+    """(host, port) of the program when it is already running, else None."""
     try:
-        port = json.load(open(STATE, encoding='utf-8', errors='replace'))['port']
-    except (OSError, ValueError, KeyError):
+        st = json.load(open(STATE, encoding='utf-8', errors='replace'))
+        host, port = st.get('host', '127.0.0.1'), st['port']
+    except (OSError, ValueError, KeyError, AttributeError):
         return None
-    return port if healthy(port) else None
+    return (host, port) if healthy(port, host=host) else None
 
 
 def find_browser():
@@ -272,13 +279,17 @@ def job_running():
 
 
 def launch():
-    port = running_port()
-    if port:  # already running: another window on it
-        open_window(f'http://127.0.0.1:{port}')
+    running = running_port()
+    if running:  # already running: another window on it
+        open_window('http://{}:{}'.format(*running))
         return 0
+    # "Use on my phone": only on this computer's Tailscale address, on a fixed port so the phone's bookmark keeps working
+    sys.path.insert(0, APP)
+    import phone
+    host = phone.server_options()[0]
+    port = phone.PORT if host != '127.0.0.1' and free_port(phone.PORT, host) == phone.PORT else free_port(host=host)
     # the program starts while the update check asks GitHub, so the window opens sooner
-    port = free_port()
-    server = subprocess.Popen(worker_cmd('--serve', str(port)), stdin=subprocess.DEVNULL, stdout=sys.stdout,
+    server = subprocess.Popen(worker_cmd('--serve', str(port), host), stdin=subprocess.DEVNULL, stdout=sys.stdout,
                               stderr=sys.stdout, env={**os.environ, 'STOCK_STOP_WHEN_CLOSED': '1'}, **hidden())
     if FROZEN and os.environ.get('STOCK_NO_UPDATE') != '1' and not job_running():
         import updater
@@ -286,7 +297,7 @@ def launch():
             stop_process(server)
             return 0  # the new version opens itself when it is installed
     for _ in range(1200):  # wait until it answers (the first start after installing takes longest)
-        if healthy(port):
+        if healthy(port, host=host):
             break
         if server.poll() is not None:
             raise RuntimeError(f'the program stopped while starting (exit code {server.returncode}); see {LOG}')
@@ -295,9 +306,9 @@ def launch():
         stop_process(server)
         raise RuntimeError('the program did not start within two minutes')
     with open(STATE, 'w', encoding='utf-8') as fh:
-        json.dump({'port': port, 'pid': server.pid}, fh)
+        json.dump({'host': host, 'port': port, 'pid': server.pid}, fh)
     try:
-        open_window(f'http://127.0.0.1:{port}')
+        open_window(f'http://{host}:{port}')
         server.wait()  # it stops by itself when its windows are closed, or with Quit in the sidebar
     finally:
         stop_process(server)
@@ -346,7 +357,7 @@ def main():
     if args[:1] == ['--serve']:
         if FROZEN and sys.stdout is None:
             log_to_file()
-        return serve(int(args[1]))
+        return serve(int(args[1]), args[2] if len(args) > 2 else '127.0.0.1')
     if args[:1] == ['--selftest']:
         return selftest()
     if args[:1] == ['--update-only']:

@@ -82,6 +82,11 @@ def one_computer_at_a_time():
                    'used on two computers at once, changes from one can overwrite the other.', icon=':material/devices:')
     else:
         datafolder.mark_in_use(core.DATA)
+    try:  # the read-only phone view in the data folder, a fresh copy every 10 minutes
+        import phone_view
+        phone_view.refresh_in_background()
+    except Exception as e:
+        print('phone view:', e)
 
 
 one_computer_at_a_time()

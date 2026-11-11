@@ -59,3 +59,14 @@ hr { opacity: 0.6; }
 @media (prefers-reduced-transparency: reduce) and (prefers-color-scheme: dark) {
   header[data-testid="stHeader"] { background: #161617; }
 }
+
+/* On a phone (opened over Tailscale): less empty space at the top and sides, smaller big headings, and tables that
+   scroll sideways inside themselves instead of widening the page */
+@media (max-width: 640px) {
+  [data-testid="stMainBlockContainer"] { padding: 3.75rem 0.875rem 2rem; }
+  h1 { font-size: 2rem !important; }
+  h2 { font-size: 1.375rem !important; }
+  [data-testid="stMetricValue"] { font-size: 1.75rem; }
+  [data-testid="stDataFrame"] { max-width: 100%; }
+  [data-testid="stButtonGroup"] > div { flex-wrap: wrap; }
+}

@@ -271,10 +271,10 @@ def commit_form(c, scen, hist):
 
     st.markdown('**1. Look back.** What the company did, from its filed figures:')
     k = st.columns(3)
-    k[0].metric('Free cash flow per share', core.pct(past) + ' a year' if past is not None else 'n/a',
+    k[0].metric('Free cash flow per share', core.gpct(past) + ' a year' if past is not None else 'n/a',
                 help='Free cash flow: the cash the business brings in, minus what it spends on buildings and machines. '
                      'Per share, so new shares or buybacks count.')
-    k[1].metric('Revenue', core.pct(rev) + ' a year' if rev is not None else 'n/a',
+    k[1].metric('Revenue', core.gpct(rev) + ' a year' if rev is not None else 'n/a',
                 help=f"From {h[0]['year']} to {h[-1]['year']}." if h else None)
     k[2].metric('Return on capital, last year', core.pct(roic) if roic is not None else 'n/a',
                 help='Profit on the money invested in the business. Well above 10% for years usually means a moat.')
@@ -283,9 +283,9 @@ def commit_form(c, scen, hist):
     st.markdown('**2. Pick a starting point** for the next 10 years.')
     choices = {}
     if past is not None:
-        choices[f'The past continues ({core.pct(past)})'] = round(past * 100, 1)
-        choices[f'It slows to half ({core.pct(past / 2)})'] = round(past * 50, 1)
-    choices['Like the economy (3%)'] = 3.0
+        choices[f'The past continues ({core.gpct(past)})'] = round(past * 100, 1)
+        choices[f'It slows to half ({core.gpct(past / 2)})'] = round(past * 50, 1)
+    choices['Like the economy (+3.0%)'] = 3.0
     choices['My own number'] = None
     pick = st.radio('Starting point', list(choices), index=1 if past is not None else 0,
                     key=f"start_{c['ticker']}", label_visibility='collapsed')
@@ -303,7 +303,7 @@ def commit_form(c, scen, hist):
                        placeholder='For example: customers keep moving to its cloud products, but it is already big')
     if g is not None and c.get('fcf0'):
         v = dcf(c['fcf0'], g / 100, r, gt, c.get('net_cash_per_share') or 0)['value']
-        st.write(f"With {g:.1f}% a year, one share is worth about **{core.money(v, c['currency'])}** to you. Today's "
+        st.write(f"With {core.gpct(g / 100)} a year, one share is worth about **{core.money(v, c['currency'])}** to you. Today's "
                  f"price is {core.money(c['price'], c['currency'])}.")
         st.caption(f"Same sums as for every company: starting from {core.money(c['fcf0'], c['currency'])} free cash "
                    f"flow per share, discounted at {core.pct(r)} a year, growing {core.pct(gt)} a year after year 10. "
@@ -335,15 +335,15 @@ def compare(c, scen):
     gap = mine['value'] / c['base'] - 1 if c.get('base') else None
     st.markdown(f"**Your estimate ({mine['date']}) next to the program's**")
     st.dataframe(pd.DataFrame([
-        {'': 'Growth a year, next 10 years', 'You': f"{mine['growth']:.1f}%",
-         'The program (base case)': core.pct(base.get('growth')), 'The price assumes': core.pct(c['implied_growth'])},
+        {'': 'Growth a year, next 10 years', 'You': core.gpct(mine['growth'] / 100),
+         'The program (base case)': core.gpct(base.get('growth')), 'The price assumes': core.gpct(c['implied_growth'])},
         {'': 'Value of one share', 'You': core.money(mine['value'], mine['currency']),
          'The program (base case)': core.money(c['base'], c['currency']),
          'The price assumes': core.money(c['price'], c['currency'])}]), hide_index=True)
     if c.get('implied_growth') is not None:
         more = mine['growth'] / 100 >= c['implied_growth']
-        st.write(f"**What this tells you:** the price assumes {core.pct(c['implied_growth'])} growth a year; you expect "
-                 f"{mine['growth']:.1f}%. " + ("By your numbers the price is fair or cheap, if your growth comes true."
+        st.write(f"**What this tells you:** the price assumes {core.gpct(c['implied_growth'])} growth a year; you expect "
+                 f"{core.gpct(mine['growth'] / 100)}. " + ("By your numbers the price is fair or cheap, if your growth comes true."
                                                if more else "By your numbers the price asks for more growth than you "
                                                "expect: you would be paying for a future you don't believe in."))
         st.caption('Turn your growth into a claim (Journal tab, measure "Free cash flow per share"), and the figures will '
@@ -458,8 +458,8 @@ def render():
     k[1].metric(f'Buy below ({m}% margin)', core.money(bb, c['currency']), f"{c['price'] / bb - 1:+.0%} away",
                 delta_color='inverse')
     k[2].metric('Base value', core.money(c['base'], c['currency']))
-    k[3].metric('Growth the price assumes', core.pct(c['implied_growth']),
-                f"delivered {core.pct(c['delivered_growth'])}", delta_color='off',
+    k[3].metric('Growth the price assumes', core.gpct(c['implied_growth']),
+                f"delivered {core.gpct(c['delivered_growth'])}", delta_color='off',
                 help='Reverse DCF: the yearly cash-flow growth for 10 years that makes the value equal today\'s price, '
                      'next to the growth the company delivered.')
     st.altair_chart(value_line(c, m))
@@ -468,7 +468,7 @@ def render():
     t = st.tabs(['Valuation', '10 checks', 'History', 'Your growth rates', 'Journal'], key='cand_tabs')
     with t[0]:
         compare(c, scen)
-        st.dataframe(pd.DataFrame([{'Scenario': s['scenario'], 'Growth, years 1–10': core.pct(s['growth']),
+        st.dataframe(pd.DataFrame([{'Scenario': s['scenario'], 'Growth, years 1–10': core.gpct(s['growth']),
                                     'Discount rate': core.pct(s['discount_rate']),
                                     'Growth after year 10': core.pct(s['long_term_growth']),
                                     'Value': core.money(s['value'], c['currency']),

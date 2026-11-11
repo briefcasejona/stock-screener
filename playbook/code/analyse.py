@@ -79,6 +79,7 @@ def close_on(closes, day):
 
 def check_rows(company, res):
     pct = lambda v: 'n/a' if v is None else f'{v:.1%}'
+    gpct = lambda v: 'n/a' if v is None else f'{v:+.1%}'.replace('-', '−')  # growth, with its sign
     f1 = lambda v: 'n/a' if v is None else f'{v:.1f}'
     debt = ('Debt not found' if res['net_debt_m'] is None else 'Net cash' if res['net_debt_m'] <= 0
             else f"Net debt {f1(res['net_debt_to_fcf'])} years of FCF")
@@ -93,10 +94,10 @@ def check_rows(company, res):
          '≤ 5 points below median', 'q_margins'),
         ('Quality', 'No dilution', 'n/a' if res['shares_change'] is None else f"Shares {res['shares_change']:+.1%} a year",
          '≤ +1% a year', 'q_dilution'),
-        ('GARP', 'Growing revenue', f"{pct(res['revenue_growth'])} a year ({res['first_year']}–{res['last_year']})", '≥ 5%', 'g_revenue'),
-        ('GARP', 'Growing cash per share', f"{pct(res['fcf_ps_growth'])} a year", '≥ 5%', 'g_fcf_ps'),
-        ('GARP', 'Still growing', f"{pct(res['revenue_growth_3y'])} a year, last 3 years", 'Above zero', 'g_still_growing'),
-        ('GARP', 'Reasonable price', f"Implied {pct(res['implied_growth'])} vs delivered {pct(res['fcf_ps_growth'])}",
+        ('GARP', 'Growing revenue', f"{gpct(res['revenue_growth'])} a year ({res['first_year']}–{res['last_year']})", '≥ 5%', 'g_revenue'),
+        ('GARP', 'Growing cash per share', f"{gpct(res['fcf_ps_growth'])} a year", '≥ 5%', 'g_fcf_ps'),
+        ('GARP', 'Still growing', f"{gpct(res['revenue_growth_3y'])} a year, last 3 years", 'Above zero', 'g_still_growing'),
+        ('GARP', 'Reasonable price', f"Implied {gpct(res['implied_growth'])} vs delivered {gpct(res['fcf_ps_growth'])}",
          'Implied ≤ delivered', 'g_price'),
     ]
     word = {'pass': 'Pass', 'fail': 'Fail', 'n/a': 'No data'}

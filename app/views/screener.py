@@ -19,12 +19,12 @@ CHECKS = [  # key, step, name, how the value reads, threshold
     ('q_dilution', 'Quality', 'No dilution',
      lambda r: 'n/a' if r['shares_change'] is None else f"shares {r['shares_change']:+.1%} a year", '≤ +1% a year'),
     ('g_revenue', 'GARP', 'Growing revenue',
-     lambda r: f"{core.pct(r['revenue_growth'])} a year ({r['first_year']}–{r['last_year']})", '≥ 5%'),
-    ('g_fcf_ps', 'GARP', 'Growing cash per share', lambda r: f"{core.pct(r['fcf_ps_growth'])} a year", '≥ 5%'),
-    ('g_still_growing', 'GARP', 'Still growing', lambda r: f"{core.pct(r['revenue_growth_3y'])} a year, last 3 years",
+     lambda r: f"{core.gpct(r['revenue_growth'])} a year ({r['first_year']}–{r['last_year']})", '≥ 5%'),
+    ('g_fcf_ps', 'GARP', 'Growing cash per share', lambda r: f"{core.gpct(r['fcf_ps_growth'])} a year", '≥ 5%'),
+    ('g_still_growing', 'GARP', 'Still growing', lambda r: f"{core.gpct(r['revenue_growth_3y'])} a year, last 3 years",
      'above zero'),
     ('g_price', 'GARP', 'Reasonable price',
-     lambda r: f"implied {core.pct(r['implied_growth'])} vs delivered {core.pct(r['fcf_ps_growth'])}", 'implied ≤ delivered'),
+     lambda r: f"implied {core.gpct(r['implied_growth'])} vs delivered {core.gpct(r['fcf_ps_growth'])}", 'implied ≤ delivered'),
 ]
 pct100 = lambda v: None if v is None else v * 100  # shown as 12.3%
 RESULT = {'pass': '✅ Pass', 'fail': '❌ Fail', 'n/a': '— No data'}

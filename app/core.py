@@ -175,6 +175,11 @@ def pct(v, nd=1):
     return 'n/a' if v is None else f'{v:.{nd}%}'
 
 
+def gpct(v, nd=1):
+    """A growth rate with its sign: +5.0% when growing, −3.2% when shrinking."""
+    return 'n/a' if v is None else f'{v:+.{nd}%}'.replace('-', '−')
+
+
 def add_journal_entry(entry):
     """Append one entry to the decision journal (entries are never edited)."""
     path = f'{JOURNAL_DIR}/journal.json'

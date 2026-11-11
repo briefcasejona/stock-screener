@@ -265,16 +265,37 @@ def _passes(key, _state):
 def passes(state):
     if not state.get('passes'):
         return
-    st.subheader('Companies you said No to')
-    st.caption('Saying no is a decision too. If a company you passed on then trails your index fund, staying away was '
-               'a good call. Prices only, in euros, since the day of your "No".')
-    rows = _passes((tuple((p['ticker'], p['date']) for p in state['passes']), date.today()), state)
-    st.dataframe(pd.DataFrame([{'Company': r['company'], 'Said no on': r['date'], 'The company since': r['stock'] * 100,
-                                'Your index fund since': r['index'] * 100,
-                                'Verdict so far': 'good call' if r['stock'] <= r['index'] else 'it did better'}
-                               for r in rows]), hide_index=True, use_container_width=True,
-                 column_config={'The company since': st.column_config.NumberColumn(format='%+.1f%%'),
-                                'Your index fund since': st.column_config.NumberColumn(format='%+.1f%%')})
+    rows = _passes((tuple((p['ticker'], p['date'], p.get('kind', 'No')) for p in state['passes']), date.today()), state)
+    pct = st.column_config.NumberColumn(format='%+.1f%%')
+    no = [r for r in rows if r['kind'] == 'No']
+    wait = [r for r in rows if r['kind'] == 'Wait']
+    if no:
+        st.subheader('Companies you said No to')
+        st.caption('Saying no is a decision too. If a company you passed on then trails your index fund, staying away '
+                   'was a good call. Prices only, in euros, since the day of your "No".')
+        st.dataframe(pd.DataFrame([{'Company': r['company'], 'Said no on': r['date'], 'The company since': r['stock'] * 100,
+                                    'Your index fund since': r['index'] * 100,
+                                    'Verdict so far': 'good call' if r['stock'] <= r['index'] else 'it did better'}
+                                   for r in no]), hide_index=True, use_container_width=True,
+                     column_config={'The company since': pct, 'Your index fund since': pct})
+    if wait:
+        st.subheader('Companies you are waiting on')
+        st.caption('The cost of waiting for a lower price. From the first day you chose "Wait": how the company did '
+                   'against your index fund, and whether its price ever came down to your buy-below price. If the '
+                   'companies you wait on keep racing ahead, your margin of safety may be stricter than these '
+                   'businesses ever allow; if they lag, waiting was right.')
+        st.dataframe(pd.DataFrame([{'Company': r['company'], 'Waiting since': r['date'],
+                                    'The company since': r['stock'] * 100, 'Your index fund since': r['index'] * 100,
+                                    'Buy-below then': core.money(r['buy_below'], r['currency']) if r['buy_below'] else '',
+                                    'Price reached it': {True: 'yes', False: 'not yet', None: ''}[r['reached']],
+                                    'So far': 'waiting cost you' if r['stock'] > r['index'] else 'waiting was fine'}
+                                   for r in wait]), hide_index=True, use_container_width=True,
+                     column_config={'The company since': pct, 'Your index fund since': pct})
+        ahead = sum(r['stock'] > r['index'] for r in wait)
+        if len(wait) >= 5 and ahead / len(wait) >= 0.7:
+            st.info(f'{ahead} of the {len(wait)} companies you waited on did better than your index fund. Your margin '
+                    'of safety may be too strict for the quality of companies you pick; consider a smaller one (on the '
+                    'left) for wide-moat companies. A few months say little: look again after a year.')
 
 
 def render():

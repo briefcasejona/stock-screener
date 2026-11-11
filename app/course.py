@@ -111,9 +111,13 @@ def add(c, decision, figures, summary):
                             'why': f"{label}, decision {decision}: {w['summary']} Checked in the annual report: "
                                    + '; '.join(f"{f['name']} {f['report']}" for f in figures[:3]) + '.',
                             'change_mind': '', 'next_check': '', 'author': 'You'})
-    if decision == 'No':
+    if decision in ('No', 'Wait'):
         import portfolio
-        portfolio.add_pass(c, w['summary'])
+        try:
+            portfolio.add_pass(c, w['summary'], kind=decision,
+                               buy_below=core.buy_below(c, core.margin()) if decision == 'Wait' else None)
+        except Exception as e:
+            print('tracking the decision:', e)
     return w
 
 

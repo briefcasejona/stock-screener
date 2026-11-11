@@ -399,21 +399,28 @@ def check_caps(state, new):
 
 # ---------- the companies you said "No" to ----------
 
-def add_pass(c, why=''):
-    """Note a "No" (Pass) on candidate `c`: its price today, so the scoreboard can show how it did against the index
-    fund since. Staying away from a company that then trails the index is a good call too."""
+def add_pass(c, why='', kind='No', buy_below=None):
+    """Note a "No" (Pass) or a "Wait" on candidate `c`: its price today, so the scoreboard can show how it did against
+    the index fund since. Staying away from a company that then trails the index is a good call; waiting on one that
+    races ahead shows a margin of safety that may be too strict. A Wait is counted from the first time you waited."""
     from refresh_company import find
     state = load()
     symbol = find(c['ticker'])[1]['yahoo']
-    if any(p['ticker'] == c['ticker'] and p['date'] == date.today().isoformat() for p in state.get('passes', [])):
-        return
-    state.setdefault('passes', []).append({'date': date.today().isoformat(), 'ticker': c['ticker'],
-                                           'company': c['company'], 'symbol': symbol, 'why': why})
+    for p in state.get('passes', []):
+        same = p['ticker'] == c['ticker'] and p.get('kind', 'No') == kind
+        if same and (kind == 'Wait' or p['date'] == date.today().isoformat()):
+            return
+    e = {'date': date.today().isoformat(), 'ticker': c['ticker'], 'company': c['company'], 'symbol': symbol,
+         'why': why, 'kind': kind}
+    if buy_below:
+        e['buy_below'], e['currency'] = round(float(buy_below), 2), c.get('currency')
+    state.setdefault('passes', []).append(e)
     save(state)
 
 
 def passes_report(state):
-    """[{company, date, its return, the index fund's return}] since each "No", in euros, prices only."""
+    """[{company, date, its return, the index fund's return, kind, ...}] since each "No" or "Wait", in euros, prices
+    only."""
     r = state.get('rules') or DEFAULT_RULES
     out = []
     for p in state.get('passes', []):
@@ -426,5 +433,8 @@ def passes_report(state):
         today = date.today().isoformat()
         a = on(m['close'], today) * on(fx, today) / (on(m['close'], p['date']) * on(fx, p['date'])) - 1
         b = on(i['close'], today) / on(i['close'], p['date']) - 1
-        out.append({'company': p['company'], 'date': p['date'], 'stock': a, 'index': b})
+        low = min((v for d, v in m['close'].items() if d >= p['date']), default=None)
+        out.append({'company': p['company'], 'date': p['date'], 'stock': a, 'index': b, 'kind': p.get('kind', 'No'),
+                    'buy_below': p.get('buy_below'), 'currency': p.get('currency'),
+                    'reached': None if not p.get('buy_below') or low is None else low <= p['buy_below']})
     return out

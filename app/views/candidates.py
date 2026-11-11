@@ -237,12 +237,13 @@ def journal_form(c, key=''):
                                     'implied_growth': c['implied_growth'], 'bear': c['bear'], 'base': c['base'],
                                     'bull': c['bull'], 'why': why.strip(), 'change_mind': change.strip(),
                                     'next_check': nxt.strip(), 'author': 'You'})
-            if dec == 'Pass':  # a "No" is tracked too: was it right to stay away?
+            if dec in ('Pass', 'Wait'):  # a "No" or "Wait" is tracked too: was it right to stay away, or to wait?
                 import portfolio
                 try:
-                    portfolio.add_pass(c)
+                    portfolio.add_pass(c, kind='No' if dec == 'Pass' else 'Wait',
+                                       buy_below=core.buy_below(c, core.margin()) if dec == 'Wait' else None)
                 except Exception as e:
-                    print('tracking the pass:', e)
+                    print('tracking the decision:', e)
             data.changed()
             st.toast('Added to the journal.')
             st.rerun()

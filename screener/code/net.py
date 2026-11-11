@@ -26,7 +26,7 @@ def sec_contact():
     c = os.environ.get('SEC_CONTACT', '').strip()
     if not c:
         try:
-            c = open(CONTACT_FILE, encoding='utf-8').read().strip()
+            c = open(CONTACT_FILE, encoding='utf-8', errors='replace').read().strip()
         except OSError:
             pass
     return c

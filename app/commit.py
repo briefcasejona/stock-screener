@@ -14,7 +14,7 @@ PATH = os.path.join(core.DATA, 'commitments.json')
 
 def load():
     try:
-        return json.load(open(PATH, encoding='utf-8'))
+        return json.load(open(PATH, encoding='utf-8', errors='replace'))
     except (OSError, ValueError):
         return {}
 

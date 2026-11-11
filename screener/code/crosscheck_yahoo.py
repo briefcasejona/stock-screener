@@ -46,8 +46,8 @@ def fetch(symbol):
 def main():
     region = sys.argv[1]
     cache_path = f'{BASE}/raw/yahoo_statements_{region}.json'
-    cache = json.load(open(cache_path)) if os.path.exists(cache_path) else {}
-    prices = {r['ticker']: r['yahoo'] for r in csv.DictReader(open(f'{BASE}/raw/prices_{region}.csv'))}
+    cache = json.load(open(cache_path, encoding='utf-8', errors='replace')) if os.path.exists(cache_path) else {}
+    prices = {r['ticker']: r['yahoo'] for r in csv.DictReader(open(f'{BASE}/raw/prices_{region}.csv', encoding='utf-8', errors='replace'))}
     for i, (t, y) in enumerate(prices.items()):
         if t in cache:
             continue
@@ -58,11 +58,11 @@ def main():
                 cache[t] = {'error': str(e)}
         if i % 50 == 0:
             print(i, t, flush=True)
-            json.dump(cache, open(cache_path, 'w'))
-    json.dump(cache, open(cache_path, 'w'))
+            json.dump(cache, open(cache_path, 'w', encoding='utf-8'))
+    json.dump(cache, open(cache_path, 'w', encoding='utf-8'))
 
     out = []
-    for r in csv.DictReader(open(f'{BASE}/output/figures_{region}.csv')):
+    for r in csv.DictReader(open(f'{BASE}/output/figures_{region}.csv', encoding='utf-8', errors='replace')):
         yh = cache.get(r['ticker'], {})
         for metric in ('revenue', 'net_income', 'operating_cash_flow', 'equity', 'debt'):
             series = yh.get(metric, {})
@@ -79,7 +79,7 @@ def main():
             out.append({'ticker': r['ticker'], 'fiscal_year': r['fiscal_year'], 'metric': metric, 'ours': ours,
                         'yahoo': theirs, 'diff': round(diff, 4),
                         'verdict': 'agree' if diff <= 0.02 else ('close' if diff <= 0.10 else 'DIFFERENT')})
-    with open(f'{BASE}/output/crosscheck_{region}.csv', 'w', newline='') as fh:
+    with open(f'{BASE}/output/crosscheck_{region}.csv', 'w', newline='', encoding='utf-8') as fh:
         w = csv.DictWriter(fh, fieldnames=list(out[0]))
         w.writeheader()
         w.writerows(out)

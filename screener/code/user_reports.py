@@ -71,7 +71,7 @@ def ensure_company(ticker, name=None, yahoo=None):
     """The company must be in a universe; one outside the S&P 500 and STOXX 600 is added to the European list."""
     import csv
     if any(r['ticker'] == ticker for r in localdata.eu_universe()) or \
-            any(r['ticker'] == ticker for r in csv.DictReader(open(f'{BASE}/raw/universe_us.csv'))):
+            any(r['ticker'] == ticker for r in csv.DictReader(open(f'{BASE}/raw/universe_us.csv', encoding='utf-8', errors='replace'))):
         return
     if not (name and yahoo):
         raise SystemExit(f'{ticker} is not in the screener lists: add --name and --yahoo (its Yahoo symbol) to add it')
@@ -224,7 +224,7 @@ def numbers_on(line):
 def cmd_pdf_text(args):
     pages = pdf_pages(args.file)
     dst = args.out or os.path.splitext(args.file)[0] + '.txt'
-    with open(dst, 'w') as fh:
+    with open(dst, 'w', encoding='utf-8') as fh:
         for i, p in enumerate(pages, 1):
             fh.write(f'\n===== page {i} =====\n{p}')
     print(json.dumps({'pages': len(pages), 'text': dst}))
@@ -246,7 +246,7 @@ def cmd_pdf_find(args):
 
 
 def cmd_pdf(args):
-    m = json.load(open(args.map))
+    m = json.load(open(args.map, encoding='utf-8', errors='replace'))
     ensure_company(m['ticker'], m.get('name'), m.get('yahoo'))
     pages = pdf_pages(args.file)
     pe = dt.date.fromisoformat(m['period_end'])
@@ -306,7 +306,7 @@ def cmd_pdf(args):
 
 def cmd_list(args):
     for p in sorted(glob.glob(f'{OUT}/*/*.json')):
-        d = json.load(open(p))
+        d = json.load(open(p, encoding='utf-8', errors='replace'))
         print(d['ticker'], d['period_end'], d['kind'], d['source_file'], d['added'], len(d['facts']))
 
 

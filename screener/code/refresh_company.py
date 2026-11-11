@@ -27,7 +27,7 @@ CODE = os.path.dirname(os.path.abspath(__file__))
 def find(ticker):
     """(region, universe row with a yahoo symbol) for a ticker in either universe."""
     for region in ('us', 'eu'):
-        rows = localdata.eu_universe() if region == 'eu' else csv.DictReader(open(f'{BASE}/raw/universe_us.csv'))
+        rows = localdata.eu_universe() if region == 'eu' else csv.DictReader(open(f'{BASE}/raw/universe_us.csv', encoding='utf-8', errors='replace'))
         for u in rows:
             if u['ticker'] == ticker:
                 if region == 'us':
@@ -48,10 +48,10 @@ def quote(symbol):
 
 
 def replace_rows(path, ticker, new_rows, fields=None):
-    rows = list(csv.DictReader(open(path)))
+    rows = list(csv.DictReader(open(path, encoding='utf-8', errors='replace')))
     fields = fields or list(rows[0])
     rows = [r for r in rows if r['ticker'] != ticker] + new_rows
-    with open(path, 'w', newline='') as fh:
+    with open(path, 'w', newline='', encoding='utf-8') as fh:
         w = csv.DictWriter(fh, fieldnames=fields)
         w.writeheader()
         w.writerows(rows)
@@ -63,9 +63,9 @@ def refresh(ticker, rerun=True):
     replace_rows(f'{BASE}/raw/prices_{region}.csv', ticker, [{'ticker': ticker, 'yahoo': u['yahoo'], **q}],
                  ['ticker', 'yahoo', 'price', 'currency', 'date'])
     splits_path = f'{BASE}/raw/splits_{region}.json'
-    splits_all = json.load(open(splits_path)) if os.path.exists(splits_path) else {}
+    splits_all = json.load(open(splits_path, encoding='utf-8', errors='replace')) if os.path.exists(splits_path) else {}
     splits_all[ticker] = splits
-    json.dump(splits_all, open(splits_path, 'w'), indent=0)
+    json.dump(splits_all, open(splits_path, 'w', encoding='utf-8'), indent=0)
 
     failed = []
     if u['source'] == 'sec':  # fresh company facts, overwriting the cached copy
@@ -77,22 +77,22 @@ def refresh(ticker, rerun=True):
         rows = extract_sec.company_rows(u, splits_all)
     else:
         lists_path = f'{BASE}/raw/esef_filings_eu.json'
-        lists = json.load(open(lists_path))
+        lists = json.load(open(lists_path, encoding='utf-8', errors='replace'))
         if u.get('lei'):
             lists[u['lei']] = extract_esef.filing_list(u['lei'])  # fresh list: a new report shows up here
-            json.dump(lists, open(lists_path, 'w'))
+            json.dump(lists, open(lists_path, 'w', encoding='utf-8'))
         rows = extract_esef.company_rows(u, lists, splits_all, failed)
     if not rows:
         raise RuntimeError(f'no figures found for {ticker}')
     replace_rows(f'{BASE}/output/figures_{region}.csv', ticker, rows)
 
     cache_path = f'{BASE}/raw/yahoo_statements_{region}.json'
-    cache = json.load(open(cache_path)) if os.path.exists(cache_path) else {}
+    cache = json.load(open(cache_path, encoding='utf-8', errors='replace')) if os.path.exists(cache_path) else {}
     try:
         cache[ticker] = crosscheck_yahoo.fetch(u['yahoo'])
     except Exception as e:  # the second source is optional; the old copy stays
         failed.append(f'second source not refreshed: {e}')
-    json.dump(cache, open(cache_path, 'w'))
+    json.dump(cache, open(cache_path, 'w', encoding='utf-8'))
 
     if rerun:
         for script in ('crosscheck_yahoo.py', 'screen.py'):

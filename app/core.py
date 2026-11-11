@@ -64,7 +64,7 @@ prepare_data()
 def program_version():
     """When this copy of the program was put together (make_package.py writes it)."""
     try:
-        return open(os.path.join(APP, 'VERSION'), encoding='utf-8').read().strip()
+        return open(os.path.join(APP, 'VERSION'), encoding='utf-8', errors='replace').read().strip()
     except OSError:
         return 'development'
 
@@ -73,7 +73,7 @@ def program_version():
 
 def settings():
     try:
-        return json.load(open(SETTINGS, encoding='utf-8'))
+        return json.load(open(SETTINGS, encoding='utf-8', errors='replace'))
     except (OSError, ValueError):
         return {}
 
@@ -116,12 +116,12 @@ def load_dashboard():
 
 def load_screen():
     path = f'{SCREENER}/dashboard/screen.json'
-    return json.load(open(path, encoding='utf-8')) if os.path.exists(path) else []
+    return json.load(open(path, encoding='utf-8', errors='replace')) if os.path.exists(path) else []
 
 
 def watchlist():
     path = f'{JOURNAL_DIR}/watchlist.json'
-    return json.load(open(path, encoding='utf-8')) if os.path.exists(path) else []
+    return json.load(open(path, encoding='utf-8', errors='replace')) if os.path.exists(path) else []
 
 
 def reviewed(cand):
@@ -178,7 +178,7 @@ def pct(v, nd=1):
 def add_journal_entry(entry):
     """Append one entry to the decision journal (entries are never edited)."""
     path = f'{JOURNAL_DIR}/journal.json'
-    entries = json.load(open(path, encoding='utf-8')) if os.path.exists(path) else []
+    entries = json.load(open(path, encoding='utf-8', errors='replace')) if os.path.exists(path) else []
     base_id = f"{entry['date']}-{entry['ticker']}"
     n = sum(1 for e in entries if e['id'].startswith(base_id))
     entry = {'id': base_id if not n else f'{base_id}-{n + 1}', **{k: v for k, v in entry.items() if k != 'ticker'}}
@@ -318,7 +318,7 @@ def restore_after_failed_refresh():
 def universe():
     import csv
     out = {}
-    for u in csv.DictReader(open(f'{SCREENER}/raw/universe_us.csv', encoding='utf-8')):
+    for u in csv.DictReader(open(f'{SCREENER}/raw/universe_us.csv', encoding='utf-8', errors='replace')):
         out[u['ticker']] = {'name': u['name'], 'region': 'us'}
     for u in localdata.eu_universe():
         out[u['ticker']] = {'name': u['name'], 'region': 'eu'}
@@ -335,7 +335,7 @@ def own_reports():
     import glob
     out = []
     for p in sorted(glob.glob(f'{USER_REPORTS}/*/*.json')):
-        d = json.load(open(p, encoding='utf-8'))
+        d = json.load(open(p, encoding='utf-8', errors='replace'))
         out.append({'Company': d['ticker'], 'Year end': d['period_end'], 'Kind': d['kind'].upper(),
                     'File': d['source_file'], 'Added': d['added'], 'Figures': len(d['facts'])})
     return out

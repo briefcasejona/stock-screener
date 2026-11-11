@@ -21,9 +21,9 @@ EXCLUDED_SECTORS = {'Financials', 'Real Estate'}  # playbook: special cases, sep
 
 def main():
     os.makedirs(CACHE, exist_ok=True)
-    rows = list(csv.DictReader(open(f'{BASE}/raw/sp500_constituents.csv')))
+    rows = list(csv.DictReader(open(f'{BASE}/raw/sp500_constituents.csv', encoding='utf-8', errors='replace')))
     keep = [r for r in rows if r['GICS Sector'] not in EXCLUDED_SECTORS]
-    with open(f'{BASE}/raw/universe_us.csv', 'w', newline='') as fh:
+    with open(f'{BASE}/raw/universe_us.csv', 'w', newline='', encoding='utf-8') as fh:
         w = csv.DictWriter(fh, fieldnames=['ticker', 'name', 'sector', 'industry', 'cik'])
         w.writeheader()
         for r in keep:

@@ -69,15 +69,15 @@ def get_json(url, headers=None):
 
 
 def cached(path, keys, fetch, every=25):
-    cache = json.load(open(path)) if os.path.exists(path) else {}
+    cache = json.load(open(path, encoding='utf-8', errors='replace')) if os.path.exists(path) else {}
     for i, k in enumerate(keys):
         if k in cache:
             continue
         cache[k] = fetch(k)
         if i % every == 0:
             print(os.path.basename(path), i, k, flush=True)
-            json.dump(cache, open(path, 'w'))
-    json.dump(cache, open(path, 'w'))
+            json.dump(cache, open(path, 'w', encoding='utf-8'))
+    json.dump(cache, open(path, 'w', encoding='utf-8'))
     return cache
 
 
@@ -109,7 +109,7 @@ def gleif(isin, name=''):
 
 
 def main():
-    rows = [r for r in csv.DictReader(open(f'{BASE}/raw/stoxx600_xtrackers_holdings.csv'))
+    rows = [r for r in csv.DictReader(open(f'{BASE}/raw/stoxx600_xtrackers_holdings.csv', encoding='utf-8', errors='replace'))
             if r['Type of Security'] == 'Aktien' and float(r['Weighting'] or 0) > 0]
     isins = [r['ISIN'] for r in rows]
     ys = cached(f'{BASE}/raw/yahoo_search_eu.json', isins, yahoo)
@@ -120,11 +120,11 @@ def main():
     if retry:
         for i in retry:
             lei[i] = gleif(i, ys[i].get('name', ''))
-        json.dump(lei, open(f'{BASE}/raw/gleif_eu.json', 'w'))
+        json.dump(lei, open(f'{BASE}/raw/gleif_eu.json', 'w', encoding='utf-8'))
 
     # SEC candidates by name, confirmed against each candidate's SEC record
     sec_path = f'{BASE}/raw/sec_match_eu.json'
-    sec = json.load(open(sec_path)) if os.path.exists(sec_path) else {}
+    sec = json.load(open(sec_path, encoding='utf-8', errors='replace')) if os.path.exists(sec_path) else {}
     tickers = get_json('https://www.sec.gov/files/company_tickers.json')
     by_name = {}
     for t in tickers.values():
@@ -148,7 +148,7 @@ def main():
                          'forms': sorted({f for f in forms if f in ANNUAL}),
                          'country': addr.get('stateOrCountryDescription') or addr.get('stateOrCountry') or ''})
         sec[r['ISIN']] = hits
-        json.dump(sec, open(sec_path, 'w'), indent=0)
+        json.dump(sec, open(sec_path, 'w', encoding='utf-8'), indent=0)
 
     out = []
     for r in keep:
@@ -164,7 +164,7 @@ def main():
                     'sector': y['sector'], 'industry': y['industry'], 'yahoo': y['symbol'], 'lei': l.get('lei', ''),
                     'cik': cik, 'source': 'sec' if cik else ('esef' if l.get('lei') else 'none'),
                     'display_name': (y.get('name') or '').replace('|', '').strip()})
-    with open(f'{BASE}/raw/universe_eu.csv', 'w', newline='') as fh:
+    with open(f'{BASE}/raw/universe_eu.csv', 'w', newline='', encoding='utf-8') as fh:
         w = csv.DictWriter(fh, fieldnames=list(out[0]))
         w.writeheader()
         w.writerows(out)

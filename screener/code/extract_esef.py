@@ -138,7 +138,7 @@ def company_rows(u, lists, splits_all, failed):
     own = sorted(glob.glob(f"{localdata.USER_REPORTS}/{u['ticker']}/*.json"))
     n_public = len(facts)
     for path in own:
-        d = json.load(open(path))
+        d = json.load(open(path, encoding='utf-8', errors='replace'))
         filed = (date.fromisoformat(d['period_end']) + timedelta(days=120)).isoformat()
         facts += [(c, s, e, v, unit, 'user:' + os.path.basename(path), filed) for c, s, e, v, unit in d['facts']]
     idx = index(facts)
@@ -155,9 +155,9 @@ def main():
     os.makedirs(CACHE, exist_ok=True)
     os.makedirs(SEC_CACHE, exist_ok=True)
     universe = localdata.eu_universe()
-    splits_all = json.load(open(f'{BASE}/raw/splits_eu.json')) if os.path.exists(f'{BASE}/raw/splits_eu.json') else {}
+    splits_all = json.load(open(f'{BASE}/raw/splits_eu.json', encoding='utf-8', errors='replace')) if os.path.exists(f'{BASE}/raw/splits_eu.json') else {}
     lists_path = f'{BASE}/raw/esef_filings_eu.json'
-    lists = json.load(open(lists_path)) if os.path.exists(lists_path) else {}
+    lists = json.load(open(lists_path, encoding='utf-8', errors='replace')) if os.path.exists(lists_path) else {}
     out, no_data, failed = [], [], []
     for i, u in enumerate(universe):
         rows = company_rows(u, lists, splits_all, failed)
@@ -166,9 +166,9 @@ def main():
         out += rows
         if i % 25 == 0:
             print(i, u['ticker'], len(rows), flush=True)
-            json.dump(lists, open(lists_path, 'w'))
-    json.dump(lists, open(lists_path, 'w'))
-    with open(f'{BASE}/output/figures_eu.csv', 'w', newline='') as fh:
+            json.dump(lists, open(lists_path, 'w', encoding='utf-8'))
+    json.dump(lists, open(lists_path, 'w', encoding='utf-8'))
+    with open(f'{BASE}/output/figures_eu.csv', 'w', newline='', encoding='utf-8') as fh:
         w = csv.DictWriter(fh, fieldnames=list(out[0]))
         w.writeheader()
         w.writerows(out)

@@ -21,7 +21,7 @@ BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 def main():
     region = sys.argv[1]
-    universe = localdata.eu_universe() if region == 'eu' else list(csv.DictReader(open(f'{BASE}/raw/universe_us.csv')))
+    universe = localdata.eu_universe() if region == 'eu' else list(csv.DictReader(open(f'{BASE}/raw/universe_us.csv', encoding='utf-8', errors='replace')))
     ymap = {u['ticker']: u.get('yahoo') or u['ticker'].replace('.', '-') for u in universe}
     symbols = sorted(set(ymap.values()))
     got = {}
@@ -43,7 +43,7 @@ def main():
     prices = []
     # the split history from before: kept for a company whose history Yahoo doesn't hand over this time
     old_path = f'{BASE}/raw/splits_{region}.json'
-    splits = json.load(open(old_path)) if os.path.exists(old_path) else {}
+    splits = json.load(open(old_path, encoding='utf-8', errors='replace')) if os.path.exists(old_path) else {}
     no_splits = []
     for t, y in ymap.items():
         if y in got:
@@ -69,11 +69,11 @@ def main():
             p['currency'] = ''
         if i % 100 == 0:
             print(i, p['ticker'], flush=True)
-    with open(f'{BASE}/raw/prices_{region}.csv', 'w', newline='') as fh:
+    with open(f'{BASE}/raw/prices_{region}.csv', 'w', newline='', encoding='utf-8') as fh:
         w = csv.DictWriter(fh, fieldnames=['ticker', 'yahoo', 'price', 'currency', 'date'])
         w.writeheader()
         w.writerows(prices)
-    json.dump(splits, open(f'{BASE}/raw/splits_{region}.json', 'w'), indent=0)
+    json.dump(splits, open(f'{BASE}/raw/splits_{region}.json', 'w', encoding='utf-8'), indent=0)
     if no_splits:
         print(f'no split history from Yahoo this time (the previous one is kept): {no_splits}')
     print(f'{len(prices)} of {len(universe)} prices; missing {[t for t in ymap if t not in {p["ticker"] for p in prices}]}')

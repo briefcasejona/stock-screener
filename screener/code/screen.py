@@ -165,13 +165,13 @@ def prepare(region):
     """Every screenable company of a region: {ticker: {meta, rows, price, rate, disagree}}, with the same
     debt rules the screen uses. Companies with fewer than MIN_YEARS years are left out."""
     figs = {}
-    for r in csv.DictReader(open(f'{BASE}/output/figures_{region}.csv')):
+    for r in csv.DictReader(open(f'{BASE}/output/figures_{region}.csv', encoding='utf-8', errors='replace')):
         figs.setdefault(r['ticker'], []).append(r)
-    prices = {r['ticker']: {**r, 'price': float(r['price'])} for r in csv.DictReader(open(f'{BASE}/raw/prices_{region}.csv'))}
-    fx = json.load(open(f'{BASE}/raw/fx.json')) if os.path.exists(f'{BASE}/raw/fx.json') else {}
+    prices = {r['ticker']: {**r, 'price': float(r['price'])} for r in csv.DictReader(open(f'{BASE}/raw/prices_{region}.csv', encoding='utf-8', errors='replace'))}
+    fx = json.load(open(f'{BASE}/raw/fx.json', encoding='utf-8', errors='replace')) if os.path.exists(f'{BASE}/raw/fx.json') else {}
     # A company with no debt tags at all is either debt-free or tags debt under its own names. Only when the
     # second source (Yahoo, crosscheck_yahoo.py cache) shows no borrowings in every year it has is it taken as zero.
-    yahoo = json.load(open(f'{BASE}/raw/yahoo_statements_{region}.json')) if os.path.exists(f'{BASE}/raw/yahoo_statements_{region}.json') else {}
+    yahoo = json.load(open(f'{BASE}/raw/yahoo_statements_{region}.json', encoding='utf-8', errors='replace')) if os.path.exists(f'{BASE}/raw/yahoo_statements_{region}.json') else {}
 
     def debt_free(t):
         y = yahoo.get(t, {})
@@ -185,7 +185,7 @@ def prepare(region):
     # crosscheck_yahoo.py output, when it has been run: disagreements become data flags
     cross = {}
     if os.path.exists(f'{BASE}/output/crosscheck_{region}.csv'):
-        for c in csv.DictReader(open(f'{BASE}/output/crosscheck_{region}.csv')):
+        for c in csv.DictReader(open(f'{BASE}/output/crosscheck_{region}.csv', encoding='utf-8', errors='replace')):
             cross.setdefault(c['ticker'], []).append(c)
     # Debt is the one figure the filing tags often get wrong: companies file current loans under their own
     # names (Ahold), or include leases (Shell). The European spot-check found 3 of 8 debt figures off. Where the
@@ -223,7 +223,7 @@ def main():
     out = [screen(t, c['meta'], c['rows'], c['price'], c['rate'], c['disagree']) for t, c in prepared.items() if c['price']]
     out = [o for o in out if o]
     out.sort(key=lambda o: (-o['passed'], -(o['quality_passed']), o['implied_growth'] if o['implied_growth'] is not None else 9))
-    with open(f'{BASE}/output/screen_{region}.csv', 'w', newline='') as fh:
+    with open(f'{BASE}/output/screen_{region}.csv', 'w', newline='', encoding='utf-8') as fh:
         w = csv.DictWriter(fh, fieldnames=list(out[0]))
         w.writeheader()
         w.writerows(out)

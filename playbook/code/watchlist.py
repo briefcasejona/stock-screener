@@ -41,7 +41,7 @@ ANNUAL_SEC, INTERIM_SEC = {'10-K', '20-F', '40-F'}, {'10-Q'}
 
 
 def load():
-    return json.load(open(LIST)) if os.path.exists(LIST) else []
+    return json.load(open(LIST, encoding='utf-8', errors='replace')) if os.path.exists(LIST) else []
 
 
 def save(entries):
@@ -58,7 +58,7 @@ def entry_of(entries, ticker):
 
 def journal_add(a, why, change_mind='A new annual report, or the price reaching a buy-below price.'):
     c = a['candidate']
-    entries = json.load(open(JOURNAL)) if os.path.exists(JOURNAL) else []
+    entries = json.load(open(JOURNAL, encoding='utf-8', errors='replace')) if os.path.exists(JOURNAL) else []
     today = date.today().isoformat()
     base_id = f"{today}-{c['ticker']}"
     n = sum(1 for e in entries if e['id'].startswith(base_id))
@@ -94,7 +94,7 @@ def latest_reports(ticker):
     elif u.get('lei'):
         from extract_esef import API, choose, filing_list
         year_end = None
-        figs = [r for r in __import__('csv').DictReader(open(f'{SCREENER}/output/figures_{region}.csv')) if r['ticker'] == ticker]
+        figs = [r for r in __import__('csv').DictReader(open(f'{SCREENER}/output/figures_{region}.csv', encoding='utf-8', errors='replace')) if r['ticker'] == ticker]
         if figs:
             year_end = max(figs, key=lambda r: r['period_end'])['period_end'][5:]
         for f in choose(filing_list(u['lei'])):
@@ -226,7 +226,7 @@ def cmd_check(args):
             continue
         t = e['ticker']
         try:
-            old = json.load(open(f'{ANALYSES}/{t}.json')) if os.path.exists(f'{ANALYSES}/{t}.json') else None
+            old = json.load(open(f'{ANALYSES}/{t}.json', encoding='utf-8', errors='replace')) if os.path.exists(f'{ANALYSES}/{t}.json') else None
             rep = latest_reports(t)
             prev = e.get('reports') or {}
             regions.add(refresh(t, rerun=False)['region'])

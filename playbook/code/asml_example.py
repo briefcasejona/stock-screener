@@ -34,13 +34,13 @@ SCENARIOS = {
 def annual():
     """{metric: {year: value in EUR (per share for EPS)}} using the latest reported values."""
     out = {}
-    for r in csv.DictReader(open(f'{CHECK}/output/free_source_figures.csv')):
+    for r in csv.DictReader(open(f'{CHECK}/output/free_source_figures.csv', encoding='utf-8', errors='replace')):
         if r['company'] == 'ASML' and r['latest']:
             out.setdefault(r['metric'], {})[int(r['fiscal_year'])] = float(r['latest'])
-    for r in csv.DictReader(open(f'{CHECK}/reference/annual_report_values.csv')):
+    for r in csv.DictReader(open(f'{CHECK}/reference/annual_report_values.csv', encoding='utf-8', errors='replace')):
         if r['company'] == 'ASML' and r['metric'] == 'operating_cash_flow' and r['fiscal_year'] == '2016':
             out['operating_cash_flow'][2016] = float(r['report_value']) * M
-    facts = json.load(open(f'{CHECK}/raw/companyfacts_0000937966.json'))['facts']['us-gaap']
+    facts = json.load(open(f'{CHECK}/raw/companyfacts_0000937966.json', encoding='utf-8', errors='replace'))['facts']['us-gaap']
     out['capex_intangibles'] = {}
     for a in facts['PaymentsToAcquireIntangibleAssets']['units']['EUR']:
         y = int(a['end'][:4])
@@ -52,7 +52,7 @@ def annual():
 
 def sec_series(key, instant):
     """Yearly values 2016-2025 for one SEC tag, taking the latest 20-F that reports each year (EUR)."""
-    facts = json.load(open(f'{CHECK}/raw/companyfacts_0000937966.json'))['facts']['us-gaap']
+    facts = json.load(open(f'{CHECK}/raw/companyfacts_0000937966.json', encoding='utf-8', errors='replace'))['facts']['us-gaap']
     out = {}
     for x in facts.get(key, {}).get('units', {}).get('EUR', []):
         full_year = 'start' not in x if instant else x.get('start', '')[5:] == '01-01'
@@ -93,7 +93,7 @@ def quality(a, fcf):
 
 def quarterly():
     """Last five quarters (Q3 2025 .. Q3 2026) from the quarterly pages of the Q3 2026 statements."""
-    text = open(f'{BASE}/sources/asml_q3_2026_statements.txt').read()
+    text = open(f'{BASE}/sources/asml_q3_2026_statements.txt', encoding='utf-8', errors='replace').read()
     heading = lambda title: re.search(r'^[ \t]*' + title + r'[ \t]*$', text, re.M).start()  # page title, not contents
     start_q = heading('Quarterly Summary US GAAP Consolidated Statements of Operations')
     summary, quarterly_part = text[heading('Summary US GAAP Consolidated Statements of Operations'):start_q], text[start_q:]
@@ -133,7 +133,7 @@ def quarterly():
 def main():
     a, q = annual(), quarterly()
     prices = {}
-    for r in csv.DictReader(open(f'{BASE}/raw/ASML.AS_daily.csv')):
+    for r in csv.DictReader(open(f'{BASE}/raw/ASML.AS_daily.csv', encoding='utf-8', errors='replace')):
         prices[r['Date'][:10]] = float(r['Close'])
     price_date = max(prices)
     price = prices[price_date]
@@ -172,7 +172,7 @@ def main():
 
     # net cash at 27 Sep 2026. The quarterly balance sheet shows long-term debt only; the current part is the
     # year-end 2025 total debt minus the 2026 repayments minus the long-term part (no new borrowing in 2026).
-    facts = json.load(open(f'{CHECK}/raw/companyfacts_0000937966.json'))['facts']['us-gaap']
+    facts = json.load(open(f'{CHECK}/raw/companyfacts_0000937966.json', encoding='utf-8', errors='replace'))['facts']['us-gaap']
     ye = lambda k: next(x['val'] for x in facts[k]['units']['EUR'] if x['end'] == '2025-12-31' and x.get('fy') == 2025)
     debt_ye2025 = ye('LongTermDebtCurrent') + ye('LongTermDebtNoncurrent')
     repaid_2026 = 692.9 + 0.3 + 1000.4  # 'Repayment of debt' Q1-Q3 2026, quarterly cash flow page
@@ -193,7 +193,7 @@ def main():
     # for comparison, the ordinary rule (average FCF per share 2023-2025) lags a fast grower
     fcf0_alt = avg(fcf_ps, (2023, 2024, 2025))
     implied_alt = reverse_dcf(price, fcf0_alt, 0.09, 0.025, net_cash_ps)
-    peers = json.load(open(f'{BASE}/raw/peer_pe_yahoo.json'))
+    peers = json.load(open(f'{BASE}/raw/peer_pe_yahoo.json', encoding='utf-8', errors='replace'))
 
     qual = quality(a, fcf)
     pe_hist = sorted(h['pe_year_end'] for h in history)
@@ -212,7 +212,7 @@ def main():
         'buy_below': scen['bear']['value'],
     }
     os.makedirs(f'{BASE}/output', exist_ok=True)
-    json.dump(result, open(f'{BASE}/output/asml_example.json', 'w'), indent=1)
+    json.dump(result, open(f'{BASE}/output/asml_example.json', 'w', encoding='utf-8'), indent=1)
 
     print(f'Price {price:.2f} EUR on {price_date}')
     print('year  revenue  op.margin  EPS    FCF/sh  FCF/NI  YE price  P/E')

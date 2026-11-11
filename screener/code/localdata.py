@@ -81,19 +81,19 @@ def write_csv(path, rows, fieldnames):
 
 def eu_universe():
     """The European list plus the companies the user added (when those are kept in their own file)."""
-    rows = list(csv.DictReader(open(UNIVERSE_EU, encoding='utf-8')))
+    rows = list(csv.DictReader(open(UNIVERSE_EU, encoding='utf-8', errors='replace')))
     if os.path.abspath(ADDED) != os.path.abspath(UNIVERSE_EU) and os.path.exists(ADDED):
         have = {r['ticker'] for r in rows}
-        rows += [r for r in csv.DictReader(open(ADDED, encoding='utf-8')) if r['ticker'] not in have]
+        rows += [r for r in csv.DictReader(open(ADDED, encoding='utf-8', errors='replace')) if r['ticker'] not in have]
     return rows
 
 
 def add_company(row):
     """Add a company to the list of companies the user added."""
     if os.path.abspath(ADDED) == os.path.abspath(UNIVERSE_EU) or os.path.exists(ADDED):
-        rows = list(csv.DictReader(open(ADDED, encoding='utf-8')))
+        rows = list(csv.DictReader(open(ADDED, encoding='utf-8', errors='replace')))
     else:
         rows = []
-    fields = next(csv.reader(open(UNIVERSE_EU, encoding='utf-8')))
+    fields = next(csv.reader(open(UNIVERSE_EU, encoding='utf-8', errors='replace')))
     rows.append({k: row.get(k, '') for k in fields})
     write_csv(ADDED, rows, fields)

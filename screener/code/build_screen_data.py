@@ -31,7 +31,7 @@ def display_names():
     names = {}
     ys_path, u_path = f'{BASE}/raw/yahoo_search_eu.json', f'{BASE}/raw/universe_eu.csv'
     if os.path.exists(u_path):
-        ys = json.load(open(ys_path)) if os.path.exists(ys_path) else {}
+        ys = json.load(open(ys_path, encoding='utf-8', errors='replace')) if os.path.exists(ys_path) else {}
         for u in localdata.eu_universe():
             names[u['ticker']] = u.get('display_name') or ys.get(u.get('isin', ''), {}).get('name') or u['name']
     return names
@@ -45,9 +45,9 @@ def main():
         if not os.path.exists(path):
             continue
         source = {}
-        for r in csv.DictReader(open(f'{BASE}/output/figures_{region}.csv')):
+        for r in csv.DictReader(open(f'{BASE}/output/figures_{region}.csv', encoding='utf-8', errors='replace')):
             source[r['ticker']] = r.get('source') or 'SEC'
-        for r in csv.DictReader(open(path)):
+        for r in csv.DictReader(open(path, encoding='utf-8', errors='replace')):
             row = {'ticker': r['ticker'], 'company': names.get(r['ticker'], r['name']).replace('|', '').strip(), 'region': label, 'sector': r['sector'],
                    'source': source.get(r['ticker'], ''), 'years': int(r['years']),
                    'first_year': int(r['first_year']), 'last_year': int(r['last_year']),
@@ -61,7 +61,7 @@ def main():
             out.append(row)
     out.sort(key=lambda o: (-o['passed'], -o['quality_passed'], o['implied_growth'] if o['implied_growth'] is not None else 9))
     os.makedirs(f'{BASE}/dashboard', exist_ok=True)
-    json.dump(out, open(f'{BASE}/dashboard/screen.json', 'w'), separators=(',', ':'))
+    json.dump(out, open(f'{BASE}/dashboard/screen.json', 'w', encoding='utf-8'), separators=(',', ':'))
     print(len(out), 'rows;', sum(o['passed'] == 10 for o in out), 'pass all 10')
 
 

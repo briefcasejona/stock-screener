@@ -36,7 +36,7 @@ REAL_LOCKED = ('Real picks open up once you have finished the research course (5
 
 def load():
     try:
-        return json.load(open(PATH, encoding='utf-8'))
+        return json.load(open(PATH, encoding='utf-8', errors='replace'))
     except (OSError, ValueError):
         return {'rules': None, 'trades': [], 'rule_changes': []}
 

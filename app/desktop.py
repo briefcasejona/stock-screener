@@ -43,7 +43,7 @@ LOG = os.path.join(BASE, 'program.log')
 
 def version():
     try:
-        return open(os.path.join(APP, 'VERSION'), encoding='utf-8').read().strip()
+        return open(os.path.join(APP, 'VERSION'), encoding='utf-8', errors='replace').read().strip()
     except OSError:
         return 'development'
 
@@ -89,7 +89,7 @@ def program_root():
         for part in ('screener', 'playbook'):
             shutil.copytree(os.path.join(BUNDLE, part), os.path.join(tmp, part))
         carry_downloads(tmp)
-        open(os.path.join(tmp, '.complete'), 'w').close()
+        open(os.path.join(tmp, '.complete'), 'w', encoding='utf-8').close()
         shutil.rmtree(root, ignore_errors=True)
         os.replace(tmp, root)
         for old in os.listdir(os.path.join(BASE, 'program')):
@@ -202,7 +202,7 @@ def free_port(start=8501):
 
 def running_port():
     try:
-        port = json.load(open(STATE, encoding='utf-8'))['port']
+        port = json.load(open(STATE, encoding='utf-8', errors='replace'))['port']
     except (OSError, ValueError, KeyError):
         return None
     return port if healthy(port) else None
@@ -254,7 +254,7 @@ def stop_process(p):
 def job_running():
     """A price or full refresh still busy in the background (it outlives the window): don't update under it."""
     try:
-        s = json.load(open(os.path.join(os.environ['STOCK_ROOT'], 'cache', 'job.json'), encoding='utf-8'))
+        s = json.load(open(os.path.join(os.environ['STOCK_ROOT'], 'cache', 'job.json'), encoding='utf-8', errors='replace'))
     except (OSError, ValueError, KeyError):
         return False
     return s.get('state') == 'running' and time.time() - s.get('beat', 0) < 90

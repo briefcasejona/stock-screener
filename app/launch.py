@@ -30,7 +30,7 @@ def stop(msg):
 
 def install():
     want = hashlib.sha256(open(REQ, 'rb').read()).hexdigest()
-    if os.path.exists(PY) and os.path.exists(STAMP) and open(STAMP).read().strip() == want:
+    if os.path.exists(PY) and os.path.exists(STAMP) and open(STAMP, encoding='utf-8', errors='replace').read().strip() == want:
         return
     if not os.path.exists(PY):
         print('First start: making the program\'s own Python environment...')
@@ -41,7 +41,7 @@ def install():
     if r.returncode:
         stop('Installing the packages failed (see the messages above). Check your internet connection and start '
              'the program again. If it keeps failing, delete the .venv folder and try once more.')
-    open(STAMP, 'w').write(want)
+    open(STAMP, 'w', encoding='utf-8').write(want)
 
 
 def free_port(start=8501):

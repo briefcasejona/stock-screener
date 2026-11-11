@@ -22,7 +22,7 @@ r4 = lambda x: round(x, 4)
 
 def build():
     """The five datasets as lists of rows (the laptop program reads these directly)."""
-    a = json.load(open(f'{BASE}/output/asml_example.json'))
+    a = json.load(open(f'{BASE}/output/asml_example.json', encoding='utf-8', errors='replace'))
     q, g, s = a['quality'], a['growth'], a['scenarios']
     company = 'ASML'
     hist = {h['year']: h for h in a['history']}
@@ -85,11 +85,11 @@ def build():
                 'year_end_price': r2(h['year_end_price']), 'pe_year_end': r1(h['pe_year_end']),
                 'roic': r4(roic[h['year']]['roic']), 'gross_margin': r4(roic[h['year']]['gross_margin'])}
                for h in a['history']]
-    journal = json.load(open(f'{JOURNAL_DIR}/journal.json'))
+    journal = json.load(open(f'{JOURNAL_DIR}/journal.json', encoding='utf-8', errors='replace'))
 
     # every company on the watchlist or analysed once (watchlist.py); its own analysis replaces the worked example
     wl_path = f'{JOURNAL_DIR}/watchlist.json'
-    for e in json.load(open(wl_path)) if os.path.exists(wl_path) else []:
+    for e in json.load(open(wl_path, encoding='utf-8', errors='replace')) if os.path.exists(wl_path) else []:
         path = f"{JOURNAL_DIR}/analyses/{e['ticker']}.json"
         if e.get('worked_example'):
             for row in candidates:
@@ -98,7 +98,7 @@ def build():
             continue
         if not os.path.exists(path):
             continue
-        an = json.load(open(path))
+        an = json.load(open(path, encoding='utf-8', errors='replace'))
         names = {an['candidate']['company']} | {r['company'] for r in candidates if r['ticker'] == e['ticker']}
         drop = lambda rows: [r for r in rows if r['company'] not in names]
         candidates, scenarios, checks, history = drop(candidates), drop(scenarios), drop(checks), drop(history)
@@ -113,7 +113,7 @@ def build():
 def main():
     os.makedirs(OUT, exist_ok=True)
     for name, rows in build().items():
-        json.dump(rows, open(f'{OUT}/{name}.json', 'w'), ensure_ascii=False, indent=1)
+        json.dump(rows, open(f'{OUT}/{name}.json', 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
         print(name, len(rows), 'rows')
 
 

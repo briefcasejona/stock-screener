@@ -264,8 +264,8 @@ def company_rows(u, splits_all):
 
 def main():
     region = sys.argv[1]
-    universe = list(csv.DictReader(open(f'{BASE}/raw/universe_{region}.csv')))
-    splits_all = json.load(open(f'{BASE}/raw/splits_{region}.json')) if os.path.exists(f'{BASE}/raw/splits_{region}.json') else {}
+    universe = list(csv.DictReader(open(f'{BASE}/raw/universe_{region}.csv', encoding='utf-8', errors='replace')))
+    splits_all = json.load(open(f'{BASE}/raw/splits_{region}.json', encoding='utf-8', errors='replace')) if os.path.exists(f'{BASE}/raw/splits_{region}.json') else {}
     out, missing = [], []
     for u in universe:
         if not os.path.exists(f'{CACHE}/{u["cik"]}.json.gz'):
@@ -273,7 +273,7 @@ def main():
             continue
         out += company_rows(u, splits_all)
     fields = list(out[0])
-    with open(f'{BASE}/output/figures_{region}.csv', 'w', newline='') as fh:
+    with open(f'{BASE}/output/figures_{region}.csv', 'w', newline='', encoding='utf-8') as fh:
         w = csv.DictWriter(fh, fieldnames=fields)
         w.writeheader()
         w.writerows(out)

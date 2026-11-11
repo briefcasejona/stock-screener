@@ -30,7 +30,7 @@ CONFIDENCE = (55, 60, 70, 80, 90)
 
 def load():
     try:
-        return json.load(open(PATH, encoding='utf-8'))
+        return json.load(open(PATH, encoding='utf-8', errors='replace'))
     except (OSError, ValueError):
         return []
 
@@ -44,7 +44,7 @@ def years(ticker):
     from refresh_company import find
     import screen as scr
     region, _ = find(ticker)
-    rows = [r for r in csv.DictReader(open(f'{core.SCREENER}/output/figures_{region}.csv', encoding='utf-8'))
+    rows = [r for r in csv.DictReader(open(f'{core.SCREENER}/output/figures_{region}.csv', encoding='utf-8', errors='replace'))
             if r['ticker'] == ticker]
     out = {}
     for y in scr.per_year(rows):

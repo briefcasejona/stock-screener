@@ -19,7 +19,7 @@ STATUS, LOG = os.path.join(core.CACHE, 'job.json'), os.path.join(core.CACHE, 'jo
 
 def status():
     try:
-        return json.load(open(STATUS, encoding='utf-8'))
+        return json.load(open(STATUS, encoding='utf-8', errors='replace'))
     except (OSError, ValueError):
         return None
 

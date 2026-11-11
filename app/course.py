@@ -24,7 +24,7 @@ DECISIONS = ('Buy', 'Wait', 'No')
 
 def load():
     try:
-        s = json.load(open(PATH, encoding='utf-8'))
+        s = json.load(open(PATH, encoding='utf-8', errors='replace'))
     except (OSError, ValueError):
         s = {}
     s.setdefault('writeups', [])

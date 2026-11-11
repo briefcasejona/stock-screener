@@ -271,7 +271,7 @@ def checks_part(s):
 
 
 def import_part(s):
-    with st.expander('Read in your broker exports', icon=':material/upload_file:', expanded=not s['events']):
+    with st.expander('Read in your broker exports', icon=':material/upload_file:', expanded=not s['events'] or st.session_state.get('imp_open', False)):
         try:
             import broker_import
         except ImportError:

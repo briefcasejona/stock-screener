@@ -341,21 +341,30 @@ def render(s):
                '(CSV); read the Portfolio file last, it is the check. Reading a file twice adds nothing twice. '
                'Only the figures are kept, not the file, your name or your account number.')
     broker = st.segmented_control('Broker', H.BROKERS, default='IBKR', required=True, key='imp_broker')
-    files = st.file_uploader('Export file(s)', type=['csv'], accept_multiple_files=True, key='imp_files')
+    for kind, text in st.session_state.pop('import_notes', []):
+        (st.success if kind == 'success' else st.error)(text)
+    files = st.file_uploader('Export file(s)', type=['csv'], accept_multiple_files=True,
+                             key=f"imp_files_{st.session_state.get('imp_gen', 0)}")
     if files and st.button('Read them in', type='primary'):
         texts = [(f.name, f.getvalue().decode('utf-8-sig', errors='replace')) for f in files]
         texts.sort(key=lambda x: degiro_kind(x[1]) == 'portfolio')  # the check comes after the records
+        notes = []
         for name, text in texts:
             try:
                 new, diffs = read_in(s, broker, text, name)
             except ValueError as e:
-                st.error(f'{name}: {e}')
+                notes.append(('error', f'{name}: {e}'))
                 continue
             if diffs is None:
-                st.success(f'{name}: {new} new records.')
+                notes.append(('success', f'{name}: {new} new records.'))
             elif not diffs:
-                st.success(f'{name}: {new} new records. Matches {broker}\'s own figures to the cent and the share.')
+                notes.append(('success', f'{name}: {new} new records. Matches {broker}\'s own figures to the cent and '
+                                         'the share.'))
             else:
-                st.error(f'{name}: {new} new records, but {len(diffs)} difference(s) with {broker}\'s own figures:')
-                st.dataframe(diffs, hide_index=True)
-        st.session_state.pop('imp_files', None)
+                notes.append(('error', f'{name}: {new} new records, but {len(diffs)} difference(s) with {broker}\'s '
+                                       'own figures: see "Checked against your brokers" above.'))
+        # start the page again, so everything above shows the new records and the check
+        st.session_state['import_notes'] = notes
+        st.session_state['imp_open'] = True  # keep this part open for the next file
+        st.session_state['imp_gen'] = st.session_state.get('imp_gen', 0) + 1
+        st.rerun()

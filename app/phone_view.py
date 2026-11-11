@@ -2,6 +2,7 @@
 folder. With the data folder in Google Drive, the Google Drive app on your phone shows it, also when the computer is
 off. It is a snapshot: prices are as of the moment it was made (shown at the top)."""
 import html
+import io
 import os
 import platform
 import threading
@@ -145,8 +146,8 @@ def write(dest=None):
     import pymupdf
     dest = dest or path()
     story = pymupdf.Story(html=build_html(), user_css=CSS)
-    tmp = dest + '.tmp'
-    writer = pymupdf.DocumentWriter(tmp)
+    buf = io.BytesIO()  # made in memory: on Windows the PDF library can keep its own file open a while
+    writer = pymupdf.DocumentWriter(buf)
     rect = pymupdf.Rect(0, 0, *PAGE)
     where = rect + (18, 22, -18, -22)
     more = True
@@ -156,7 +157,17 @@ def write(dest=None):
         story.draw(dev)
         writer.end_page()
     writer.close()
-    os.replace(tmp, dest)
+    import localdata
+    tmp = f'{dest}.{os.getpid()}.tmp'
+    with open(tmp, 'wb') as fh:
+        fh.write(buf.getvalue())
+        fh.flush()
+        os.fsync(fh.fileno())
+    localdata._replace(tmp, dest)  # tries again while Google Drive or a virus scanner has the file open
+    try:  # a leftover from the first version, which could not swap its file in on Windows
+        os.remove(dest + '.tmp')
+    except OSError:
+        pass
     return dest
 
 

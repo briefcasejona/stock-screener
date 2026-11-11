@@ -32,7 +32,18 @@ RESULT = {'pass': '✅ Pass', 'fail': '❌ Fail', 'n/a': '— No data'}
 
 def analyse_buttons(r):
     entry = next((e for e in core.watchlist() if e['ticker'] == r['ticker']), None)
-    if entry:
+    if entry and entry.get('hidden'):
+        st.info(f"You removed {r['company']} from your candidates on {entry['hidden']}. Put it back as it was, or "
+                'analyse it again below.')
+        if st.button('Put it back in Candidates'):
+            _, err = core.wl('unhide', ticker=r['ticker'])
+            if err:
+                st.error(err)
+            else:
+                data.changed()
+                st.session_state['focus'] = r['ticker']
+                st.switch_page(st.session_state['pages']['candidates'])
+    elif entry:
         st.success(f"{r['company']} is already in your candidates "
                    f"({'following' if entry['mode'] == 'watch' else 'one-time analysis'}).")
         if st.button('Open it in Candidates'):

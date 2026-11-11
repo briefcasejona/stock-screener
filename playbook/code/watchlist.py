@@ -122,7 +122,10 @@ def run_analysis(e):
 
 def cmd_add(args):
     entries = load()
-    if any(e['ticker'] == args.ticker for e in entries):
+    old = next((e for e in entries if e['ticker'] == args.ticker), None)
+    if old and old.get('hidden'):  # analysed again after you removed it: it comes back with a fresh analysis
+        entries.remove(old)
+    elif old:
         raise SystemExit(f'{args.ticker} is already on the list; use set, watch or once')
     e = {'ticker': args.ticker, 'mode': 'once' if args.once else 'watch', 'added': date.today().isoformat(),
          'analysed': date.today().isoformat(), 'fcf_basis': 'normalised' if args.normalised else 'average'}
@@ -200,6 +203,19 @@ def cmd_mode(args, mode):
     print(f"{args.ticker}: {'watching' if mode == 'watch' else 'one-time analysis, no more updates'}")
 
 
+def cmd_hide(args, hidden=True):
+    """Take a company off the candidates list (hidden=True) or put it back. Its analysis and journal entries stay,
+    so it can be put back exactly as it was; a hidden company gets no weekly updates."""
+    entries = load()
+    e = entry_of(entries, args.ticker)
+    if hidden:
+        e['hidden'] = date.today().isoformat()
+    else:
+        e.pop('hidden', None)
+    save(entries)
+    print(f"{args.ticker} {'removed from' if hidden else 'back on'} the candidates list")
+
+
 def cmd_remove(args):
     entries = load()
     entry_of(entries, args.ticker)
@@ -222,7 +238,7 @@ def cmd_check(args):
     entries = load()
     events, problems, regions = [], [], set()
     for e in entries:
-        if e['mode'] != 'watch' or (args.ticker and e['ticker'] != args.ticker):
+        if e['mode'] != 'watch' or e.get('hidden') or (args.ticker and e['ticker'] != args.ticker):
             continue
         t = e['ticker']
         try:

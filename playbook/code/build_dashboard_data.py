@@ -91,6 +91,11 @@ def build():
     wl_path = f'{JOURNAL_DIR}/watchlist.json'
     for e in json.load(open(wl_path, encoding='utf-8', errors='replace')) if os.path.exists(wl_path) else []:
         path = f"{JOURNAL_DIR}/analyses/{e['ticker']}.json"
+        if e.get('hidden'):  # you took it off the list (it can be put back)
+            gone = {r['company'] for r in candidates if r['ticker'] == e['ticker']}
+            candidates, scenarios, checks, history = ([r for r in rows if r['company'] not in gone]
+                                                      for rows in (candidates, scenarios, checks, history))
+            continue
         if e.get('worked_example'):
             for row in candidates:
                 if row['ticker'] == e['ticker']:

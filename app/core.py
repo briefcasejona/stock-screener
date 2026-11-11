@@ -201,6 +201,7 @@ def wl(cmd, **kw):
         return None, NOT_READY
     import watchlist as w
     fn = {'add': w.cmd_add, 'set': w.cmd_set, 'remove': w.cmd_remove, 'check': w.cmd_check,
+          'hide': w.cmd_hide, 'unhide': lambda a: w.cmd_hide(a, hidden=False),
           'watch': lambda a: w.cmd_mode(a, 'watch'), 'once': lambda a: w.cmd_mode(a, 'once')}[cmd]
     buf = io.StringIO()
     try:

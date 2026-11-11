@@ -23,7 +23,7 @@ def get(ticker):
     return load().get(ticker)
 
 
-def new(c, growth, value, why):
+def new(c, growth, value, why, start=None):
     """Lock in your estimate for candidate `c` (growth in %, value per share in the price's currency)."""
     if not why.strip():
         raise ValueError('Write one line on why.')
@@ -34,6 +34,8 @@ def new(c, growth, value, why):
         raise ValueError('Your estimate for this company is already written down.')
     e = {'date': date.today().isoformat(), 'growth': float(growth), 'value': float(value), 'currency': c['currency'],
          'price': c['price'], 'why': why.strip()}
+    if start:
+        e['start'] = start
     allc[c['ticker']] = e
     core.localdata.write_json(PATH, allc, indent=1)
     core.add_journal_entry({'date': e['date'], 'ticker': c['ticker'], 'company': c['company'], 'price': c['price'],

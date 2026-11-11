@@ -126,18 +126,6 @@ def follow_controls(c, entry):
         else:
             data.changed()
             st.rerun()
-    if entry.get('worked_example'):
-        b.caption('The worked example stays in the list.')
-        return
-    with b.popover('Remove', icon=':material/delete:'):
-        st.write(f"Remove {c['company']} from your candidates? Its journal entries stay.")
-        if st.button('Yes, remove it', key=f"rm_{c['ticker']}"):
-            _, err = core.wl('remove', ticker=c['ticker'])
-            if err:
-                st.error(err)
-            else:
-                data.changed()
-                st.rerun()
 
 
 def history_charts(hist, c):
@@ -265,30 +253,78 @@ def committed(c, entry):
     return bool((entry or {}).get('worked_example') or commit.get(c['ticker']))
 
 
-def commit_form(c):
-    st.markdown(f"#### First, your own estimate")
-    st.write('The program has valued this company, but it shows you its numbers only after you have written down '
-             'yours. That way you learn when your guesses get checked, not by reading the program\'s verdict. Use the '
-             '**History** tab (revenue, cash flow, margins, return on capital) and the annual report. Your estimate is '
-             'locked once saved and goes into the journal.')
-    with st.form(f"commit_{c['ticker']}"):
-        a, b = st.columns(2)
-        g = a.number_input('Free cash flow growth you expect, per year for the next 10 years (%)', -10.0, 40.0, None,
-                           0.5, placeholder='for example 8')
-        v = b.number_input(f"What one share is worth to you ({c['currency']})", 0.0, 1e7, None,
-                           placeholder=f"today's price is {core.money(c['price'], c['currency'])}")
-        why = st.text_input('Why, in one line?', placeholder='What makes you expect this growth?')
-        if st.form_submit_button('Lock in my estimate and show the program\'s', type='primary'):
-            if g is None or v is None:
-                st.error('Fill in both numbers.')
-                return
-            try:
-                commit.new(c, g, v, why)
-            except ValueError as e:
-                st.error(str(e))
-                return
-            data.changed()
-            st.rerun()
+def commit_form(c, scen, hist):
+    """Your estimate, step by step: look back, pick a starting point, decide faster or slower and why. You choose the
+    growth; the value follows from it with the same sums the program uses for every company."""
+    from valuation import dcf
+    base = next((s for s in scen if s['scenario'] == 'Base'), {})
+    r, gt = base.get('discount_rate', 0.09), base.get('long_term_growth', 0.025)
+    h = sorted(hist, key=lambda x: x['year'])
+    past = c.get('delivered_growth')
+    rev = None
+    if len(h) >= 2 and h[0].get('revenue_m') and h[-1].get('revenue_m') and h[0]['revenue_m'] > 0:
+        rev = (h[-1]['revenue_m'] / h[0]['revenue_m']) ** (1 / (h[-1]['year'] - h[0]['year'])) - 1
+    roic = h[-1].get('roic') if h else None
+    st.markdown('#### First, your own estimate')
+    st.write('The program has valued this company, but it shows its numbers only after you have written down yours. '
+             'You don\'t need to know the answer: you need a reason. Three steps.')
+
+    st.markdown('**1. Look back.** What the company did, from its filed figures:')
+    k = st.columns(3)
+    k[0].metric('Free cash flow per share', core.pct(past) + ' a year' if past is not None else 'n/a',
+                help='Free cash flow: the cash the business brings in, minus what it spends on buildings and machines. '
+                     'Per share, so new shares or buybacks count.')
+    k[1].metric('Revenue', core.pct(rev) + ' a year' if rev is not None else 'n/a',
+                help=f"From {h[0]['year']} to {h[-1]['year']}." if h else None)
+    k[2].metric('Return on capital, last year', core.pct(roic) if roic is not None else 'n/a',
+                help='Profit on the money invested in the business. Well above 10% for years usually means a moat.')
+    st.caption('The History tab below has every year. Lesson 2 and 3 of the Course show what to look for.')
+
+    st.markdown('**2. Pick a starting point** for the next 10 years.')
+    choices = {}
+    if past is not None:
+        choices[f'The past continues ({core.pct(past)})'] = round(past * 100, 1)
+        choices[f'It slows to half ({core.pct(past / 2)})'] = round(past * 50, 1)
+    choices['Like the economy (3%)'] = 3.0
+    choices['My own number'] = None
+    pick = st.radio('Starting point', list(choices), index=1 if past is not None else 0,
+                    key=f"start_{c['ticker']}", label_visibility='collapsed')
+    st.caption('A fact to weigh: fast growth rarely lasts. As companies get bigger, their growth usually slows towards '
+               'that of the economy; very few keep growing fast ten years in a row (Chan, Karceski and Lakonishok, '
+               '"The Level and Persistence of Growth Rates", Journal of Finance, 2003). "The past continues" is the '
+               'boldest choice, not the safe one.')
+
+    st.markdown('**3. Faster or slower, and why?** Adjust the number, and write the reason in one line.')
+    start = choices[pick]
+    a, b = st.columns([1, 2])
+    g = a.number_input('Your growth, per year for 10 years (%)', -10.0, 40.0, start, 0.5,
+                       key=f"g_{c['ticker']}_{pick}", placeholder='for example 6')
+    why = b.text_input('Why this growth?', key=f"why_{c['ticker']}",
+                       placeholder='For example: customers keep moving to its cloud products, but it is already big')
+    if g is not None and c.get('fcf0'):
+        v = dcf(c['fcf0'], g / 100, r, gt, c.get('net_cash_per_share') or 0)['value']
+        st.write(f"With {g:.1f}% a year, one share is worth about **{core.money(v, c['currency'])}** to you. Today's "
+                 f"price is {core.money(c['price'], c['currency'])}.")
+        st.caption(f"Same sums as for every company: starting from {core.money(c['fcf0'], c['currency'])} free cash "
+                   f"flow per share, discounted at {core.pct(r)} a year, growing {core.pct(gt)} a year after year 10. "
+                   'You choose the growth; the arithmetic is the same for everyone.')
+    else:
+        v = None
+    if st.button('Lock in my estimate and show the program\'s', type='primary', key=f"lock_{c['ticker']}"):
+        if g is None:
+            st.error('Fill in your growth rate.')
+            return
+        if v is None or v <= 0:
+            st.error('With this growth the value comes out at zero or less. Check the number, or pick another '
+                     'starting point.')
+            return
+        try:
+            commit.new(c, g, round(v, 2), why, start=pick)
+        except ValueError as e:
+            st.error(str(e))
+            return
+        data.changed()
+        st.rerun()
 
 
 def compare(c, scen):
@@ -304,10 +340,50 @@ def compare(c, scen):
         {'': 'Value of one share', 'You': core.money(mine['value'], mine['currency']),
          'The program (base case)': core.money(c['base'], c['currency']),
          'The price assumes': core.money(c['price'], c['currency'])}]), hide_index=True)
+    if c.get('implied_growth') is not None:
+        more = mine['growth'] / 100 >= c['implied_growth']
+        st.write(f"**What this tells you:** the price assumes {core.pct(c['implied_growth'])} growth a year; you expect "
+                 f"{mine['growth']:.1f}%. " + ("By your numbers the price is fair or cheap, if your growth comes true."
+                                               if more else "By your numbers the price asks for more growth than you "
+                                               "expect: you would be paying for a future you don't believe in."))
+        st.caption('Turn your growth into a claim (Journal tab, measure "Free cash flow per share"), and the figures will '
+                   'show in a year or two whether you were right. That is how guesses turn into judgement.')
     if gap is not None:
         st.caption(f"Your value is {abs(gap):.0%} {'above' if gap >= 0 else 'below'} the program's base value. Neither "
                    'is the truth: write in the journal what you think explains the gap. Later, the figures show who '
                    'was closer.')
+
+
+def set_hidden(ticker, hidden):
+    with st.spinner('Updating...'):
+        _, err = core.wl('hide' if hidden else 'unhide', ticker=ticker)
+    if err:
+        st.error(err)
+        return
+    st.session_state['undo_remove'] = ticker if hidden else None
+    if not hidden:
+        st.session_state['focus'] = ticker
+    data.changed()
+    st.rerun()
+
+
+def removed_part():
+    gone = [e for e in core.watchlist() if e.get('hidden')]
+    undo = st.session_state.get('undo_remove')
+    if undo and any(e['ticker'] == undo for e in gone):
+        e = next(e for e in gone if e['ticker'] == undo)
+        a, b = st.columns([4, 1], vertical_alignment='center')
+        a.success(f"{e.get('company', undo)} is off your candidates list. Its analysis, estimate, claims and journal "
+                  'entries are kept.')
+        if b.button('Undo', icon=':material/undo:', key='undo_btn'):
+            set_hidden(undo, False)
+    if gone:
+        with st.expander(f'Removed companies ({len(gone)})'):
+            for e in gone:
+                a, b = st.columns([4, 1], vertical_alignment='center')
+                a.write(f"{e.get('company', e['ticker'])} · removed {e['hidden']}")
+                if b.button('Put back', key=f"unhide_{e['ticker']}"):
+                    set_hidden(e['ticker'], False)
 
 
 def render():
@@ -317,6 +393,7 @@ def render():
     st.title('Candidates')
     st.caption(f'Companies you analysed. Buy-below = base value minus your {m}% margin of safety (change it on the '
                f'left). {core.DISCLAIMER}')
+    removed_part()
     if not cands:
         st.info('No candidates yet. Pick a company on the Screener page and analyse it.')
         return
@@ -356,12 +433,16 @@ def render():
     dec = core.decision(c, m)
 
     st.divider()
-    st.subheader(f"{c['company']}")
+    a, b = st.columns([4, 1], vertical_alignment='center')
+    a.subheader(f"{c['company']}")
+    if entry and b.button('Remove from list', icon=':material/remove_circle:', key=f"hide_{c['ticker']}",
+                          help='Takes it off your candidates. You can put it back any time, exactly as it was.'):
+        set_hidden(c['ticker'], True)
     st.caption(f"{c['ticker']} · {c.get('exchange', '')} · {c.get('region', '')} · analysed {c.get('analysed', '')} · "
                f"figures up to {c.get('figures_to', '')}")
     if not committed(c, entry):
         st.metric('Price', core.money(c['price'], c['currency']), help=f"Close on {c.get('price_date', '')}")
-        commit_form(c)
+        commit_form(c, scen, [h for h in d['history'] if h['company'] == c['company']])
         t = st.tabs(['History', 'Updates', 'Journal'], key='cand_tabs_new')
         with t[0]:
             history_charts([h for h in d['history'] if h['company'] == c['company']], c)

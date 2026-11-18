@@ -15,9 +15,16 @@ Run (python3 -I code/user_reports.py ...):
   pdf-text <file>                             write the PDF's text, page by page, next to the output (for the map)
   pdf-find <file> <regex>                     list matching lines with page numbers and the numbers on them
   pdf <file> --map <map.json>                 read a PDF with a map (see PDF_MAP_EXAMPLE) and check it
+  interim <file> --ticker QBTS                read a quarterly or half-year report in inline XBRL (a 10-Q .htm from
+                                              SEC EDGAR, or an interim ESEF-style report); stored apart from the
+                                              annual reports and used only for the latest twelve months
+  pdf-interim <file> --map <map.json>         the same from a PDF, with a map (see cmd_pdf_interim) and checks
+  add-us <ticker>                             add a US-listed company outside the S&P 500 by its ticker: its annual
+                                              and quarterly figures then come from the SEC, no files needed
   list                                        list the reports added so far
 """
 import argparse
+import csv
 import datetime as dt
 import glob
 import json
@@ -304,6 +311,175 @@ def cmd_pdf(args):
     print(json.dumps({'saved': out, 'facts': len(facts), 'checks': 'passed'}))
 
 
+CASH_FLOW_ITEMS = {'CashFlowsFromUsedInOperatingActivities', 'PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities',
+                   'CashFlowsFromUsedInInvestingActivities', 'CashFlowsFromUsedInFinancingActivities',
+                   'EffectOfExchangeRateChangesOnCashAndCashEquivalents', 'CashFlowStatementClosingCash',
+                   'CashFlowStatementOpeningCash'}
+
+
+def cmd_pdf_interim(args):
+    """A quarterly or half-year report as PDF, with a map like the annual one plus:
+    year_to_date_from (first day of the months covered), order ('newest' or 'oldest' column first) and
+    income_columns ('last' = the last two numbers on a line, 'before_last' = the two before those, for reports that
+    print the quarter after the year to date). Cash-flow lines always use their last two numbers; balance-sheet
+    lines their last two, of which the quarter-end one is kept (the other is the last year end)."""
+    m = json.load(open(args.map, encoding='utf-8', errors='replace'))
+    ensure_company(m['ticker'], m.get('name'), m.get('yahoo'))
+    pages = pdf_pages(args.file)
+    end = dt.date.fromisoformat(m['period_end'])
+    start = dt.date.fromisoformat(m['year_to_date_from'])
+    if not 60 <= (end - start).days <= 300:
+        raise SystemExit('the months covered must be between two and ten months')
+    p_end, p_start = end - dt.timedelta(days=365), start - dt.timedelta(days=365)
+    p_end = end.replace(year=end.year - 1) if not (end.month == 2 and end.day == 29) else p_end
+    p_start = start.replace(year=start.year - 1) if not (start.month == 2 and start.day == 29) else p_start
+    newest = m.get('order', 'newest') == 'newest'
+    facts, refs, problems, got = [], {}, [], {}
+    for concept, item in m['items'].items():
+        page, label = item[0], item[1]
+        nth = item[3] if len(item) > 3 else None
+        lines = [l for l in pages[page - 1].splitlines() if safe_pattern(label).search(l)]
+        if nth is not None and nth < len(lines):
+            lines = [lines[nth]]
+        if len(lines) != 1:
+            problems.append(f'{concept}: {len(lines)} lines match on page {page}')
+            continue
+        nums = numbers_on(lines[0])
+        flow = concept in FLOW or concept in ('CashFlowStatementClosingCash', 'CashFlowStatementOpeningCash')
+        if flow and concept not in CASH_FLOW_ITEMS and m.get('income_columns') == 'before_last':
+            two = nums[-4:-2] if len(nums) >= 4 else []
+        else:
+            two = nums[-2:]
+        if len(two) != 2:
+            problems.append(f'{concept}: expected two numbers on page {page}: {lines[0].strip()}')
+            continue
+        cur, old = (two[0], two[1]) if newest else (two[1], two[0])
+        if concept in POSITIVE:
+            cur, old = abs(cur), abs(old)
+        per_share = concept == 'DilutedEarningsLossPerShare'
+        shares = concept == 'AdjustedWeightedAverageShares'
+        scale = 1 if per_share else m.get('share_scale', m['scale']) if shares else m['scale']
+        unit = f"{m['currency']}/shares" if per_share else 'shares' if shares else m['currency']
+        refs[concept] = {'page': page, 'line': lines[0].strip()}
+        got[concept] = (cur * scale, old * scale)
+        if concept in ('CashFlowStatementClosingCash', 'CashFlowStatementOpeningCash'):
+            continue  # only for the check below
+        if concept in FLOW:
+            facts.append([concept, start.isoformat(), end.isoformat(), cur * scale, unit])
+            facts.append([concept, p_start.isoformat(), p_end.isoformat(), old * scale, unit])
+        else:  # balance sheet: the quarter end (the other column is the last year end)
+            facts.append([concept, None, end.isoformat(), cur * scale, unit])
+    a, el = got.get('Assets'), got.get('EquityAndLiabilities')
+    if a and el and abs(a[0] - el[0]) > 0.001 * abs(a[0]):
+        problems.append(f'balance sheet does not balance ({a[0]:,.0f} vs {el[0]:,.0f})')
+    ni, eps, sh = (got.get(k) for k in ('ProfitLossAttributableToOwnersOfParent', 'DilutedEarningsLossPerShare',
+                                         'AdjustedWeightedAverageShares'))
+    if ni and eps and sh:
+        for i, col in enumerate(('this year', 'a year earlier')):
+            if ni[i] and abs(eps[i] * sh[i] / ni[i] - 1) > 0.05:  # EPS is rounded to cents: small losses differ more
+                r = abs(eps[i] * sh[i] / ni[i])
+                hint = ' (about 1,000 or 1,000,000 times off: check "Share numbers are in")' if \
+                    any(0.9 * k < r < 1.1 * k or 0.9 / k < r < 1.1 / k for k in (1e3, 1e6)) else ''
+                problems.append(f'{col}: EPS x shares is {eps[i] * sh[i]:,.0f}, net profit {ni[i]:,.0f}{hint}')
+    flows = [got.get(c) for c in ('CashFlowsFromUsedInOperatingActivities', 'CashFlowsFromUsedInInvestingActivities',
+                                  'CashFlowsFromUsedInFinancingActivities')]
+    if None not in flows:
+        if got.get('CashFlowStatementClosingCash') and got.get('CashFlowStatementOpeningCash'):
+            change = got['CashFlowStatementClosingCash'][0] - got['CashFlowStatementOpeningCash'][0]
+        elif got.get('CashAndCashEquivalents'):  # balance sheet: quarter end and last year end
+            change = got['CashAndCashEquivalents'][0] - got['CashAndCashEquivalents'][1]
+        else:
+            change = None
+        if change is not None:
+            fx = (got.get('EffectOfExchangeRateChangesOnCashAndCashEquivalents') or (0, 0))[0]
+            diff = change - sum(f[0] for f in flows) - fx
+            if abs(diff) > 0.01 * max(abs(change), abs(flows[0][0]), 1):
+                problems.append(f'cash flow does not add up to the change in cash (off by {diff:,.0f}): give the '
+                                'cash at the beginning and end of the period from the cash flow statement')
+    if problems:
+        print(json.dumps({'saved': None, 'problems': problems}, indent=1))
+        sys.exit(1)
+    out = save(m['ticker'], m['period_end'], 'interim', os.path.basename(args.file), facts,
+               {'page_refs': refs, 'year_to_date_from': m['year_to_date_from'], 'format': 'pdf'})
+    print(json.dumps({'saved': out, 'facts': len(facts), 'checks': 'passed', 'period_end': m['period_end'],
+                      'from': m['year_to_date_from']}))
+
+
+def read_ixbrl(path):
+    """The facts of an inline XBRL file: a package (.zip, its biggest report) or the report itself."""
+    if zipfile.is_zipfile(path):
+        z = zipfile.ZipFile(path)
+        reports = [n for n in z.namelist() if n.lower().endswith(('.xhtml', '.html', '.htm'))]
+        if not reports:
+            raise SystemExit('no report found in the package')
+        biggest = max(reports, key=lambda n: z.getinfo(n).file_size)
+        if z.getinfo(biggest).file_size > MAX_REPORT:  # a small zip can unpack to many gigabytes
+            raise SystemExit(f'the report inside the zip is bigger than {MAX_REPORT // 2**20} MB unpacked: not read')
+        with z.open(biggest) as fh:
+            return ixbrl_facts(fh)
+    if os.path.getsize(path) > MAX_REPORT:
+        raise SystemExit(f'the report is bigger than {MAX_REPORT // 2**20} MB: not read')
+    with open(path, 'rb') as fh:
+        return ixbrl_facts(fh)
+
+
+INTERIM_NAMES = ('Revenue', 'Revenues', 'RevenueFromContractWithCustomerExcludingAssessedTax', 'NetIncomeLoss',
+                 'ProfitLoss', 'ProfitLossAttributableToOwnersOfParent', 'NetCashProvidedByUsedInOperatingActivities',
+                 'CashFlowsFromUsedInOperatingActivities')
+
+
+def cmd_interim(args):
+    ensure_company(args.ticker, args.name, args.yahoo)
+    try:
+        facts = read_ixbrl(args.file)
+    except ET.ParseError:
+        raise SystemExit('this file is not an inline XBRL report. On SEC EDGAR, open the 10-Q filing and save the main '
+                         '.htm document (the one marked 10-Q); a PDF can\'t be read for quarters yet')
+    if not facts:
+        raise SystemExit('no tagged figures found: save the 10-Q .htm from SEC EDGAR, not a PDF or a press release')
+    spans = [(s, e) for c, s, e, v, u in facts if s and c in INTERIM_NAMES]
+    ytd = [(s, e) for s, e in spans if 60 <= (dt.date.fromisoformat(e) - dt.date.fromisoformat(s)).days <= 300]
+    if not ytd:
+        raise SystemExit('no quarter or half-year figures found: is this an annual report? Use the ESEF tab for those')
+    end = max(e for s, e in ytd)
+    # the year to date must come with the same months a year earlier, or twelve months can't be put together
+    longest = max((s for s, e in ytd if e == end), key=lambda s: (dt.date.fromisoformat(end) - dt.date.fromisoformat(s)).days)
+    days = (dt.date.fromisoformat(end) - dt.date.fromisoformat(longest)).days
+    prior_end = dt.date.fromisoformat(end) - dt.timedelta(days=365)
+    has_prior = any(abs((dt.date.fromisoformat(e) - prior_end).days) <= 7 and
+                    abs((dt.date.fromisoformat(e) - dt.date.fromisoformat(s)).days - days) <= 10 for s, e in spans)
+    if not has_prior:
+        raise SystemExit('the report has no figures for the same months a year earlier')
+    out = save(args.ticker, end, 'interim', os.path.basename(args.file), facts,
+               {'year_to_date_from': longest})
+    print(json.dumps({'saved': out, 'period_end': end, 'from': longest, 'facts': len(facts)}))
+
+
+def cmd_add_us(args):
+    """A US-listed company from the SEC's own list of tickers, added to the companies the user added."""
+    import net
+    ticker = args.ticker.strip().upper()
+    if any(r['ticker'] == ticker for r in csv.DictReader(open(f'{BASE}/raw/universe_us.csv', encoding='utf-8', errors='replace'))) \
+            or any(r['ticker'] == ticker for r in localdata.eu_universe()):
+        print(json.dumps({'ticker': ticker, 'added': False, 'note': 'already in the lists'}))
+        return
+    sec = json.loads(net.fetch('https://www.sec.gov/files/company_tickers.json'))
+    hit = next((v for v in sec.values() if v['ticker'].upper() == ticker), None)
+    if not hit:
+        raise SystemExit(f'{ticker} is not in the SEC\'s list of tickers: is it listed in the US, and is the ticker right?')
+    sector = industry = ''
+    try:  # what kind of company it is, from Yahoo; optional
+        import yfinance as yf
+        info = yf.Ticker(ticker.replace('.', '-')).info
+        sector, industry = info.get('sector') or '', info.get('industry') or ''
+    except Exception:
+        pass
+    localdata.add_company({'ticker': ticker, 'name': hit['title'], 'country': 'US', 'sector': sector,
+                           'industry': industry, 'yahoo': ticker.replace('.', '-'), 'cik': str(hit['cik_str']).zfill(10),
+                           'source': 'sec', 'display_name': hit['title']})
+    print(json.dumps({'ticker': ticker, 'added': True, 'name': hit['title']}))
+
+
 def cmd_list(args):
     for p in sorted(glob.glob(f'{OUT}/*/*.json')):
         d = json.load(open(p, encoding='utf-8', errors='replace'))
@@ -318,9 +494,14 @@ def main():
     a = sub.add_parser('pdf-text'); a.add_argument('file'); a.add_argument('--out')
     a = sub.add_parser('pdf-find'); a.add_argument('file'); a.add_argument('regex')
     a = sub.add_parser('pdf'); a.add_argument('file'); a.add_argument('--map', required=True)
+    a = sub.add_parser('interim'); a.add_argument('file'); a.add_argument('--ticker', required=True)
+    a.add_argument('--name'); a.add_argument('--yahoo')
+    a = sub.add_parser('pdf-interim'); a.add_argument('file'); a.add_argument('--map', required=True)
+    a = sub.add_parser('add-us'); a.add_argument('ticker')
     sub.add_parser('list')
     args = ap.parse_args()
-    {'esef': cmd_esef, 'pdf-text': cmd_pdf_text, 'pdf-find': cmd_pdf_find, 'pdf': cmd_pdf, 'list': cmd_list}[args.cmd](args)
+    {'esef': cmd_esef, 'pdf-text': cmd_pdf_text, 'pdf-find': cmd_pdf_find, 'pdf': cmd_pdf, 'interim': cmd_interim,
+     'pdf-interim': cmd_pdf_interim, 'add-us': cmd_add_us, 'list': cmd_list}[args.cmd](args)
 
 
 if __name__ == '__main__':

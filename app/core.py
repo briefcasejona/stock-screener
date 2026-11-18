@@ -328,7 +328,7 @@ def universe():
     for u in csv.DictReader(open(f'{SCREENER}/raw/universe_us.csv', encoding='utf-8', errors='replace')):
         out[u['ticker']] = {'name': u['name'], 'region': 'us'}
     for u in localdata.eu_universe():
-        out[u['ticker']] = {'name': u['name'], 'region': 'eu'}
+        out[u['ticker']] = {'name': u['name'], 'region': 'us' if u.get('country') == 'US' else 'eu'}
     return out
 
 
@@ -343,7 +343,8 @@ def own_reports():
     out = []
     for p in sorted(glob.glob(f'{USER_REPORTS}/*/*.json')):
         d = json.load(open(p, encoding='utf-8', errors='replace'))
-        out.append({'Company': d['ticker'], 'Year end': d['period_end'], 'Kind': d['kind'].upper(),
+        out.append({'Company': d['ticker'], 'Period end': d['period_end'],
+                    'Kind': 'Quarterly / half-year' if d['kind'] == 'interim' else 'Annual, ' + d['kind'].upper(),
                     'File': d['source_file'], 'Added': d['added'], 'Figures': len(d['facts'])})
     return out
 

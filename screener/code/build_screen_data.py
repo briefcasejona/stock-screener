@@ -39,6 +39,7 @@ def display_names():
 
 def main():
     names = display_names()
+    us_added = {u['ticker'] for u in localdata.eu_universe() if u.get('country') == 'US'}
     out = []
     for region, label in REGIONS.items():
         path = f'{BASE}/output/screen_{region}.csv'
@@ -48,7 +49,8 @@ def main():
         for r in csv.DictReader(open(f'{BASE}/output/figures_{region}.csv', encoding='utf-8', errors='replace')):
             source[r['ticker']] = r.get('source') or 'SEC'
         for r in csv.DictReader(open(path, encoding='utf-8', errors='replace')):
-            row = {'ticker': r['ticker'], 'company': names.get(r['ticker'], r['name']).replace('|', '').strip(), 'region': label, 'sector': r['sector'],
+            here = 'US' if r['ticker'] in us_added else label  # US companies the user added are kept in the eu files
+            row = {'ticker': r['ticker'], 'company': names.get(r['ticker'], r['name']).replace('|', '').strip(), 'region': here, 'sector': r['sector'],
                    'source': source.get(r['ticker'], ''), 'years': int(r['years']),
                    'first_year': int(r['first_year']), 'last_year': int(r['last_year']),
                    'report_currency': r['report_currency'], 'price_currency': r['price_currency'],

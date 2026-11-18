@@ -7,7 +7,7 @@ import streamlit as st
 
 import commit
 import core
-from views import data
+from views import data, quarter
 
 BADGE = {'Buy': 'green', 'Deep dive': 'blue', 'Wait': 'gray'}
 MEANING = {
@@ -450,12 +450,14 @@ def render():
     if not committed(c, entry):
         st.metric('Price', core.money(c['price'], c['currency']), help=f"Close on {c.get('price_date', '')}")
         commit_form(c, scen, [h for h in d['history'] if h['company'] == c['company']])
-        t = st.tabs(['History', 'Updates', 'Journal'], key='cand_tabs_new')
+        t = st.tabs(['History', 'Latest quarter', 'Updates', 'Journal'], key='cand_tabs_new')
         with t[0]:
             history_charts([h for h in d['history'] if h['company'] == c['company']], c)
         with t[1]:
-            follow_controls(c, entry)
+            quarter.show(c['ticker'], stamp=c.get('figures_to'))
         with t[2]:
+            follow_controls(c, entry)
+        with t[3]:
             journal_part(c, d['journal'])
         return
     st.markdown(f":{BADGE[dec]}-badge[{dec}] {MEANING[dec]}")
@@ -472,7 +474,8 @@ def render():
     st.altair_chart(value_line(c, m))
     st.caption('Grey bar: bear to bull value. Green: the buy zone, up to the buy-below price. Red: today\'s price.')
 
-    t = st.tabs(['Valuation', '10 checks', 'History', 'Your growth rates', 'Journal'], key='cand_tabs')
+    t = st.tabs(['Valuation', '10 checks', 'History', 'Latest quarter', 'Your growth rates', 'Journal'],
+                key='cand_tabs')
     with t[0]:
         compare(c, scen)
         st.dataframe(pd.DataFrame([{'Scenario': s['scenario'], 'Growth, years 1–10': core.gpct(s['growth']),
@@ -496,8 +499,10 @@ def render():
     with t[2]:
         history_charts([h for h in d['history'] if h['company'] == c['company']], c)
     with t[3]:
+        quarter.show(c['ticker'], stamp=c.get('figures_to'))
+    with t[4]:
         follow_controls(c, entry)
         st.divider()
         growth_form(c, scen, entry)
-    with t[4]:
+    with t[5]:
         journal_part(c, d['journal'])

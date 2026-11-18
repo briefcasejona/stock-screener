@@ -135,7 +135,8 @@ def company_rows(u, lists, splits_all, failed):
     else:
         facts = []
     # annual reports the user added (user_reports.py): same facts, merged; newest report wins
-    own = sorted(glob.glob(f"{localdata.USER_REPORTS}/{u['ticker']}/*.json"))
+    own = sorted(p for p in glob.glob(f"{localdata.USER_REPORTS}/{u['ticker']}/*.json")
+                 if not p.endswith('__interim.json'))  # quarterly reports: only for the latest twelve months
     n_public = len(facts)
     for path in own:
         d = json.load(open(path, encoding='utf-8', errors='replace'))

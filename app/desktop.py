@@ -278,9 +278,41 @@ def job_running():
     return s.get('state') == 'running' and time.time() - s.get('beat', 0) < 90
 
 
+def stop_running():
+    """Stop the copy that is already running (its launcher then ends too), and wait until it no longer answers."""
+    try:
+        st = json.load(open(STATE, encoding='utf-8', errors='replace'))
+        host, port, pid = st.get('host', '127.0.0.1'), st['port'], int(st['pid'])
+    except (OSError, ValueError, KeyError, TypeError):
+        return False
+    import signal
+    try:
+        os.kill(pid, signal.SIGTERM)  # on Windows this ends the process
+    except OSError:
+        return False
+    for _ in range(150):
+        if not healthy(port, host=host):
+            return True
+        time.sleep(0.1)
+    return False
+
+
+def update_waiting():
+    """A newer release, when this copy may update itself now (a refresh is not running); never raises."""
+    if not FROZEN or os.environ.get('STOCK_NO_UPDATE') == '1' or job_running():
+        return False
+    try:
+        import updater
+        return bool(updater.newer(version()))
+    except Exception:
+        return False
+
+
 def launch():
     running = running_port()
-    if running:  # already running: another window on it
+    # already running: another window on it. It keeps running while it is used from the phone (or a window is open),
+    # so a newer version would never be installed: then stop it and start again, which installs the update first.
+    if running and not (update_waiting() and stop_running()):
         open_window('http://{}:{}'.format(*running))
         return 0
     # "Use on my phone": only on this computer's Tailscale address, on a fixed port so the phone's bookmark keeps working

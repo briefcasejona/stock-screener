@@ -62,12 +62,26 @@ def analyse_buttons(r):
     if follow or once:
         with st.spinner(f"Analysing {r['company']} (downloads 12 years of prices)..."):
             _, err = core.wl('add', ticker=r['ticker'], once=once)
-        if err:
+        if err and 'free cash flow is not positive' in err:
+            st.warning(f"{r['company']} can't get a value range: its free cash flow is below zero (it uses more cash "
+                       'than its business brings in), and a DCF only works on cash a company produces. Its checks are '
+                       'above; its latest twelve months are on the Add a report page, Quarterly report tab.')
+        elif err:
             st.error(err)
         else:
             data.changed()
             st.session_state['focus'] = r['ticker']
             st.switch_page(st.session_state['pages']['candidates'])
+
+
+def added():
+    """Companies you added yourself (Add a report: a new company, or a US company by ticker)."""
+    try:
+        import csv
+        return {r['ticker'] for r in csv.DictReader(open(core.ADDED, encoding='utf-8', errors='replace'))
+                if r.get('source') == 'user' or r.get('country') == 'US'}
+    except OSError:
+        return set()
 
 
 def render():
@@ -85,9 +99,13 @@ def render():
     sectors = sorted({r['sector'] for r in rows if r['sector']})
     pick = f[2].multiselect('Sector', sectors, placeholder='All sectors')
     q = f[3].text_input('Search', placeholder='Company or ticker').strip().lower()
-    view = [r for r in rows if (region == 'All' or r['region'] == region) and r['passed'] >= least
+    # a search finds a company whatever its checks, and the companies you added yourself are always shown
+    mine = added()
+    view = [r for r in rows if (region == 'All' or r['region'] == region)
+            and (r['passed'] >= least or q or 'your files' in r['source'] or r['ticker'] in mine)
             and (not pick or r['sector'] in pick) and (not q or q in r['company'].lower() or q in r['ticker'].lower())]
     st.caption(f"{len(view)} of {len(rows)} companies shown · {sum(r['passed'] == 10 for r in rows)} pass all 10. "
+               'A search, and the companies you added yourself, show whatever their checks. '
                'Missing a company (many German and Swiss ones have no free data)? Add its annual report on the '
                '"Add a report" page.')
     if not view:

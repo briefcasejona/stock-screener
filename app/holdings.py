@@ -32,6 +32,12 @@ EXTERNAL = ('deposit', 'withdrawal')
 COST_KINDS = ('fee',)
 
 
+def all_costs(s):
+    """Every cost paid: fees and currency costs on trades, currency conversions, and other broker fees."""
+    return (sum(e.get('costs_eur') or 0.0 for e in s['events'] if e['kind'] in ('buy', 'sell', 'fx'))
+            + sum(-eur_of(e) for e in s['events'] if e['kind'] in COST_KINDS))
+
+
 # ---------- the file ----------
 
 def load():
@@ -54,11 +60,23 @@ def add_events(s, events, broker, source):
     """Add records read from a broker's file. A record already there (same broker and same `ref`) is skipped, so
     reading the same file twice, or two overlapping files, adds nothing twice. Returns how many were new."""
     seen = {(e['broker'], e['ref']) for e in s['events']}
+    # Records that can also be told apart by what they are (DeGiro's account lines, which used to carry their
+    # description in their reference, so an export in another language looked new): the same date, kind and amount
+    # as one already there counts as the same record, as often as it is already there.
+    sig = lambda e: (e['broker'], e['date'], e['kind'], tuple(sorted(e.get('cash', {}).items())))
+    have, met = {}, {}
+    for e in s['events']:
+        have[sig(e)] = have.get(sig(e), 0) + 1
     new = 0
-    for e in events:
-        e = {**e, 'broker': broker}
+    for raw in events:
+        e = {k: v for k, v in raw.items() if k != 'same_as'} | {'broker': broker}
         if (broker, e['ref']) in seen:
             continue
+        if raw.get('same_as'):
+            k = sig(e)
+            met[k] = met.get(k, 0) + 1
+            if met[k] <= have.get(k, 0):
+                continue
         seen.add((broker, e['ref']))
         e['id'] = uuid.uuid4().hex[:10]
         s['events'].append(e)
@@ -66,7 +84,8 @@ def add_events(s, events, broker, source):
         if e.get('isin') and e['isin'] not in s['securities']:
             s['securities'][e['isin']] = {'name': e.get('name') or e['isin'], 'symbol': e.get('symbol'),
                                           'kind': None, 'sector': None, 'country': None}
-    s['imports'].append({'broker': broker, 'file': source, 'at': date.today().isoformat(), 'new': new})
+    # the file's name is not kept: broker downloads are often named after your account number
+    s['imports'].append({'broker': broker, 'at': date.today().isoformat(), 'new': new})
     s['events'].sort(key=lambda e: (e['date'], e.get('ref', '')))
     return new
 
@@ -120,8 +139,9 @@ def fx_on(cur, day):
 # ---------- prices ----------
 
 def markets(s, start=None):
-    """Prices and dividends for every holding that has a Yahoo symbol, and the exchange rates needed."""
-    syms = {v['symbol'] for v in s['securities'].values() if v.get('symbol')}
+    """Prices and dividends for every holding that has a Yahoo symbol, your index fund (to compare sales with), and
+    the exchange rates needed."""
+    syms = {v['symbol'] for v in s['securities'].values() if v.get('symbol')} | {index_symbol(s)}
     first = start or min((e['date'] for e in s['events']), default=date.today().isoformat())
     begin = (date.fromisoformat(first) - timedelta(days=10)).isoformat()
     out = {'start': begin, 'm': {}, 'fx': {}}
@@ -300,8 +320,15 @@ def month_and_year(s, mk, today=None):
     return out
 
 
+def box3_year(today=None):
+    """The tax return you are probably filling in: last year's until June (it asks for 1 January of that year and
+    of this one), this year's after."""
+    today = today or date.today()
+    return today.year - 1 if today.month < 6 else today.year
+
+
 def box3_value(s, mk, year=None):
-    """Your holdings and cash on 1 January (the day Box 3 looks at), both brokers together."""
+    """Your holdings and cash on 1 January of `year` (the day Box 3 looks at), both brokers together."""
     y = year or date.today().year
     day = date(y, 1, 1).isoformat()
     hv, cv, missing = total_value(s, mk, day)
@@ -396,21 +423,23 @@ def accept_difference(s, broker, currency, amount, day):
 
 
 def sold_report(s, mk):
-    """Holdings you sold completely: how each did after your last sale, against your index fund over the same days
+    """Holdings you sold, completely or in part: how each did after your last sale, against your index fund over the same days
     (prices only, in euros). Like a "No": if it trails the index afterwards, selling was a good call."""
     pos, _ = positions(s)
     idx = index_symbol(s)
     today = date.today().isoformat()
     out = []
     for isin, p in pos.items():
-        if abs(p['units']) > 1e-9 or not p['received_eur']:
+        sells = [e['date'] for e in s['events'] if e.get('isin') == isin and e['kind'] in ('sell', 'position_out')]
+        if not sells or not p['received_eur']:
             continue
-        last = max(e['date'] for e in s['events'] if e.get('isin') == isin and e['kind'] in ('sell', 'position_out'))
+        last = max(sells)
+        part = abs(p['units']) > 1e-9  # still holding some: the result is not final yet
         sec = s['securities'].get(isin, {})
         a0, a1 = price_eur(mk, sec.get('symbol'), last), price_eur(mk, sec.get('symbol'), today)
         b0, b1 = price_eur(mk, idx, last), price_eur(mk, idx, today)
         out.append({'isin': isin, 'name': sec.get('name', isin), 'sold': last, 'why': sec.get('sold_why', ''),
-                    'result_eur': p['received_eur'] + p['dividends_eur'] - p['paid_eur'],
+                    'part': part, 'result_eur': None if part else p['received_eur'] + p['dividends_eur'] - p['paid_eur'],
                     'stock_since': a1 / a0 - 1 if a0 and a1 else None,
                     'index_since': b1 / b0 - 1 if b0 and b1 else None})
     return sorted(out, key=lambda r: r['sold'], reverse=True)

@@ -72,8 +72,50 @@ def set_rule(text):
                             'next_check': 'After 24 months of claims', 'author': 'You'})
 
 
-def add(c, decision, figures, summary):
-    """Record a write-up on candidate `c` for the current step. `figures`: 3 x {'name', 'report', 'program'}."""
+# figure names the program also has, so a write-up can put your figure next to the program's
+PROGRAM = [(('free cash flow per share', 'fcf per share', 'fcf/share'), 'fcf_per_share', '{:.2f} per share'),
+           (('earnings per share', 'eps'), 'eps', '{:.2f} per share'),
+           (('free cash flow', 'fcf'), 'fcf_m', '{:,.0f} million'),
+           (('cash from operations', 'operating cash flow', 'cash flow from operations', 'operating activities'),
+            'operating_cash_flow_m', '{:,.0f} million'),
+           (('operating income', 'operating profit', 'operating result', 'ebit'), 'operating_income_m', '{:,.0f} million'),
+           (('net profit', 'net income', 'net earnings', 'profit for the year'), 'net_income_m', '{:,.0f} million'),
+           (('capital spending', 'capex', 'capital expenditure'), 'capex_m', '{:,.0f} million'),
+           (('revenue', 'sales', 'turnover', 'omzet'), 'revenue_m', '{:,.0f} million'),
+           (('roic', 'return on invested capital', 'return on capital'), 'roic', '{:.1%}'),
+           (('gross margin',), 'gross_margin', '{:.1%}')]
+
+
+def program_value(name, history, company):
+    """The program's figure for a figure you checked, e.g. 'revenue 2025' -> 'revenue 2025: 10,800 million', or ''."""
+    import re
+    n = name.lower()
+    rows = sorted((h for h in (history or []) if h.get('company') == company), key=lambda h: h['year'])
+    if not rows:
+        return ''
+    y = re.search(r'(19|20)\d\d', n)
+    row = next((h for h in rows if y and h['year'] == int(y.group())), rows[-1])
+    for words, key, fmt in PROGRAM:
+        if any(w in n for w in words) and row.get(key) is not None:
+            return f"{row['year']}: {fmt.format(row[key])}"
+    return ''
+
+
+def not_ready(c):
+    """Why candidate `c` can't get a write-up yet, or None when it can."""
+    if not commit.get(c['ticker']) and any(e['ticker'] == c['ticker'] and e.get('worked_example') for e in core.watchlist()):
+        return (f"{c['company']} is the worked example: you have already seen the program's numbers for it, so it can't "
+                'be a write-up. Pick another company.')
+    if not commit.get(c['ticker']):
+        return f"Write down your own estimate for {c['company']} first, on the Candidates page."
+    if not any(x['ticker'] == c['ticker'] and x['made'] >= commit.get(c['ticker'])['date'] for x in claims.load()):
+        return f"Make at least one claim about {c['company']} first (Candidates page, Journal tab)."
+    return None
+
+
+def add(c, decision, figures, summary, history=None):
+    """Record a write-up on candidate `c` for the current step. `figures`: 3 x {'name', 'report', 'program'}; the
+    program's own figure is filled in from `history` where the name matches one it has."""
     s = load()
     p = progress(s)
     kind, lesson = next_step(p)
@@ -81,20 +123,25 @@ def add(c, decision, figures, summary):
         raise ValueError('All write-ups are done.')
     if decision not in DECISIONS:
         raise ValueError('Pick Buy, Wait or No.')
-    if not commit.get(c['ticker']) and any(e['ticker'] == c['ticker'] and e.get('worked_example') for e in core.watchlist()):
-        raise ValueError(f"{c['company']} is the worked example: you have already seen the program's numbers for it, so "
-                         'it can\'t be a write-up. Pick another company.')
-    if not commit.get(c['ticker']):
-        raise ValueError(f"Write down your own estimate for {c['company']} first, on the Candidates page.")
-    if not any(x['ticker'] == c['ticker'] and x['made'] >= commit.get(c['ticker'])['date'] for x in claims.load()):
-        raise ValueError(f"Make at least one claim about {c['company']} first (Candidates page, Journal tab).")
-    figures = [f for f in figures if f['name'].strip() and f['report'].strip()]
+    why = not_ready(c)
+    if why:
+        raise ValueError(why)
+    figures = [{**f, 'name': f['name'].strip(), 'report': f['report'].strip()} for f in figures]
+    figures = [f for f in figures if len(f['name']) >= 3 and len(f['report']) >= 6 and any(ch.isdigit() for ch in f['report'])]
     if len(figures) < 3:
-        raise ValueError('Check three figures in the annual report: name each one and write what the report says.')
-    if not summary.strip():
-        raise ValueError('Write your conclusion in one or two lines.')
+        raise ValueError('Check three figures in the annual report: name each one (for example "revenue 2025") and write '
+                         'what the report says, with the number and the page (for example "10.8 bn USD, page 52").')
+    if len({f['name'].lower() for f in figures}) < 3:
+        raise ValueError('Check three different figures.')
+    if len(summary.strip()) < 30:
+        raise ValueError('Write your conclusion in one or two full lines: what you found and why it leads to your decision.')
+    for f in figures:
+        f['program'] = f.get('program') or program_value(f['name'], history, c['company'])
     if kind == 'before' and any(x['ticker'] == c['ticker'] for x in s['writeups']):
         raise ValueError('Your two "before" write-ups are on two different companies. Pick another one.')
+    if kind == 'lesson' and sum(x['ticker'] == c['ticker'] for x in s['writeups'] if x['kind'] == 'lesson') >= 2:
+        raise ValueError(f"You have done two lessons on {c['company']} already. Do this one on another company: "
+                         'the skill is in seeing different businesses.')
     if kind == 'solo' and any(x['ticker'] == c['ticker'] for x in s['writeups']):
         raise ValueError('A solo write-up is on a company you have not written up before. Pick another one.')
     if kind == 'solo' and p['solo'] == SOLO - 1 and p['solo_no'] == 0 and decision != 'No':
@@ -109,7 +156,8 @@ def add(c, decision, figures, summary):
     core.add_journal_entry({'date': w['date'], 'ticker': c['ticker'], 'company': c['company'], 'price': c.get('price'),
                             'currency': c.get('currency', ''), 'decision': label,
                             'why': f"{label}, decision {decision}: {w['summary']} Checked in the annual report: "
-                                   + '; '.join(f"{f['name']} {f['report']}" for f in figures[:3]) + '.',
+                                   + '; '.join(f"{f['name']} {f['report']}" + (f" (program: {f['program']})" if f['program'] else '')
+                                             for f in figures[:3]) + '.',
                             'change_mind': '', 'next_check': '', 'author': 'You'})
     if decision in ('No', 'Wait'):
         import portfolio

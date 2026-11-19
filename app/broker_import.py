@@ -50,9 +50,40 @@ def ibkr_sections(text):
     return out
 
 
+def ibkr_base(sec):
+    """The account's base currency: from the Account Information section when it is there, else the currency whose
+    rows have an exchange rate of exactly 1 to the base (EUR when that can't be told)."""
+    for r in sec.get('ACCT', []):
+        if r.get('CurrencyPrimary'):
+            return r['CurrencyPrimary']
+    ones = {r.get('CurrencyPrimary') for code in ('TRNT', 'CTRN', 'POST') for r in sec.get(code, [])
+            if r.get('FXRateToBase') not in (None, '') and num(r['FXRateToBase']) == 1.0 and r.get('CurrencyPrimary')}
+    return ones.pop() if len(ones) == 1 else 'EUR'
+
+
 def parse_ibkr(text):
     """(records, statement, securities) from an IBKR Activity Flex Query CSV."""
     sec = ibkr_sections(text)
+    base_ccy = ibkr_base(sec)
+    # IBKR's own euro rate per day, from euro rows (their rate to the base currency); Yahoo's when there is none
+    eur_in_base = {}
+    for code, when in (('TRNT', 'TradeDate'), ('CTRN', 'Date/Time')):
+        for r in sec.get(code, []):
+            if r.get('CurrencyPrimary') == 'EUR' and num(r.get('FXRateToBase')) > 0:
+                eur_in_base[day(r.get(when))] = num(r['FXRateToBase'])
+
+    def base_to_eur(d):
+        return 1 / eur_in_base[d] if d in eur_in_base else H.fx_on(base_ccy, d)
+
+    def eur_rate(c, rate, d):
+        """Euros for one unit of `c` on day `d`: IBKR's own rate to the base currency, then (when the base is not the
+        euro) the base currency's euro rate of that day."""
+        if c == 'EUR':
+            return 1.0
+        to_base = 1.0 if c == base_ccy else (rate or None)
+        if to_base is None:
+            return H.fx_on(c, d)
+        return to_base if base_ccy == 'EUR' else to_base * base_to_eur(d)
     missing = [n for code, n in (('TRNT', 'Trades'), ('CTRN', 'Cash Transactions'), ('POST', 'Open Positions'),
                                   ('CRTT', 'Cash Report')) if code not in sec and code != 'CTRN']
     if missing:
@@ -88,21 +119,26 @@ def parse_ibkr(text):
         if r.get('LevelOfDetail') != 'EXECUTION':
             continue
         cur, ccur = r['CurrencyPrimary'], r.get('IBCommissionCurrency') or r['CurrencyPrimary']
-        rate = num(r.get('FXRateToBase')) or 1.0
-        to_eur = lambda c: 1.0 if c == 'EUR' else rate  # IBKR's own rate of that day (base currency euro)
+        rate, d = num(r.get('FXRateToBase')), day(r['TradeDate'])
+        # IBKR's rate is to the account's base currency; a rate in the trade's currency
+        to_eur = lambda c, rate=rate, d=d, cur=cur: eur_rate(c, rate if c == cur else None, d)
         ref = r.get('TransactionID') or r.get('TradeID')
         if r['AssetClass'] == 'CASH':  # changing money: EUR.GBP, quantity in the first currency, proceeds in the second
-            base, quote = (r['Symbol'].split('.') + [''])[:2]
+            first, second = (r['Symbol'].split('.') + [''])[:2]
             cash = {}
-            for c, a in ((base, num(r['Quantity'])), (quote, num(r['Proceeds'])), (ccur, num(r['IBCommission']))):
+            for c, a in ((first, num(r['Quantity'])), (second, num(r['Proceeds'])), (ccur, num(r['IBCommission']))):
                 if a:
                     cash[c] = cash.get(c, 0.0) + a
-            if base != 'EUR' and quote != 'EUR':
-                continue  # not seen with a euro account; left out rather than guessed
+            if 'EUR' not in (first, second):  # e.g. USD.CHF: valued at the day's rates
+                events.append({'ref': f'fx{ref}', 'date': d, 'kind': 'fx', 'cash': cash,
+                               'costs_eur': -num(r['IBCommission']) * eur_rate(ccur, None, d),
+                               'eur': sum(a * eur_rate(c, None, d) for c, a in cash.items())})
+                continue
             fxr = num(r['TradePrice'])
-            eur = sum(a if c == 'EUR' else (a / fxr if c == quote else a * fxr) for c, a in cash.items()) if fxr else None
-            events.append({'ref': f'fx{ref}', 'date': day(r['TradeDate']), 'kind': 'fx', 'cash': cash,
-                           'costs_eur': -num(r['IBCommission']) * to_eur(ccur), 'eur': eur})
+            eur = (sum(a if c == 'EUR' else (a / fxr if c == second else a * fxr) for c, a in cash.items())
+                   if fxr else None)
+            events.append({'ref': f'fx{ref}', 'date': d, 'kind': 'fx', 'cash': cash,
+                           'costs_eur': -num(r['IBCommission']) * eur_rate(ccur, None, d), 'eur': eur})
             continue
         if r['AssetClass'] != 'STK':
             continue
@@ -117,16 +153,19 @@ def parse_ibkr(text):
                        'eur': sum(a * to_eur(c) for c, a in cash.items())})
     kinds = {'Deposits/Withdrawals': None, 'Dividends': 'dividend', 'Payment In Lieu Of Dividends': 'dividend',
              'Withholding Tax': 'tax', 'Broker Interest Received': 'interest', 'Broker Interest Paid': 'interest',
-             'Bond Interest Received': 'interest', 'Other Fees': 'fee', 'Commission Adjustments': 'fee'}
+             'Bond Interest Received': 'interest', 'Other Fees': 'fee', 'Commission Adjustments': 'fee',
+             'Sales Tax': 'fee', 'Advisor Fees': 'fee'}
     for r in sec.get('CTRN', []):
         if r.get('LevelOfDetail') != 'DETAIL':
             continue
         t, a, cur = r.get('Type', ''), num(r['Amount']), r['CurrencyPrimary']
-        if t not in kinds:
-            raise ValueError(f'A cash record of a kind the import doesn\'t know yet: "{t}". Nothing was read in.')
-        k = kinds[t] or ('deposit' if a > 0 else 'withdrawal')
-        e = {'ref': f"c{r.get('TransactionID') or r.get('ActionID')}{k}", 'date': day(r['Date/Time']), 'kind': k,
-             'cash': {cur: a}, 'eur': a * (1.0 if cur == 'EUR' else num(r.get('FXRateToBase')) or 1.0)}
+        # a kind the import doesn't know: kept as "other" (its cash counts, it is not called a cost), not refused
+        k = kinds.get(t, 'other') or ('deposit' if a > 0 else 'withdrawal')
+        d = day(r['Date/Time'])
+        e = {'ref': f"c{r.get('TransactionID') or r.get('ActionID')}{k}", 'date': d, 'kind': k,
+             'cash': {cur: a}, 'eur': a * eur_rate(cur, num(r.get('FXRateToBase')), d)}
+        if k == 'other':
+            e['note'] = t
         if r.get('ISIN'):
             e.update(isin=isin(r['ISIN']), name=r.get('Description', ''))
             note(r)
@@ -149,7 +188,9 @@ def parse_ibkr(text):
         events.append({'ref': f"x{r.get('TransactionID')}", 'date': day(r.get('Date') or r.get('DateTime')),
                        'kind': 'position_in' if q > 0 else 'position_out', 'isin': isin(r['ISIN']),
                        'name': r.get('Description', ''), 'units': abs(q),
-                       'cost_eur': num(r.get('CostBasis')) * (num(r.get('FXRateToBase')) or 1.0)})
+                       'cost_eur': num(r.get('CostBasis')) * eur_rate(r.get('CurrencyPrimary', 'EUR'),
+                                                                        num(r.get('FXRateToBase')),
+                                                                        day(r.get('Date') or r.get('DateTime')))})
         note(r)
     pos = [r for r in sec.get('POST', []) if r.get('LevelOfDetail') == 'SUMMARY']
     cash = [r for r in sec.get('CRTT', []) if r.get('LevelOfDetail') == 'Currency']
@@ -159,7 +200,8 @@ def parse_ibkr(text):
     for r in pos:
         i = isin(r['ISIN'])
         statement['units'][i] = statement['units'].get(i, 0.0) + num(r['Quantity'])
-        statement['value'][i] = num(r['PositionValue']) * (num(r.get('FXRateToBase')) or 1.0)
+        statement['value'][i] = num(r['PositionValue']) * eur_rate(r.get('CurrencyPrimary', 'EUR'),
+                                                                   num(r.get('FXRateToBase')), when)
         note(r)
     return events, statement, securities
 
@@ -265,7 +307,9 @@ def parse_degiro_account(text):
         if kind is None:
             unknown.append(desc)
             continue
-        e = {'ref': ref('a', r[0], r[1], desc, cur, r[8]), 'date': dday(r[0]), 'kind': kind, 'cash': {cur: amt}}
+        # the reference leaves the description out: the same export in another language is the same record
+        e = {'ref': ref('a', r[0], r[1], cur, r[8]), 'date': dday(r[0]), 'kind': kind, 'cash': {cur: amt},
+             'same_as': True}
         if cur == 'EUR':
             e['eur'] = amt
         if r[4]:
@@ -300,8 +344,9 @@ def parse_degiro_portfolio(text):
 # ---------- reading a file in ----------
 
 def read_in(s, broker, text, source):
-    """Parse, add new records, update what each holding is, and check against the statement in the same file.
-    Returns (new records, differences)."""
+    """Parse, add new records, update what each holding is, and check against the statement in the same file, or
+    against the last statement read in when new records arrive. Returns (new records, differences: a list, None when
+    there was nothing to check, or 'later' for a statement that came before any records)."""
     statement, securities, events = None, {}, []
     if broker == 'IBKR':
         events, statement, securities = parse_ibkr(text)
@@ -329,7 +374,15 @@ def read_in(s, broker, text, source):
             found = H.find_symbol(i)
             if found:
                 cur['symbol'] = found[0][0]
-    diffs = H.reconcile(s, broker, statement) if statement and statement.get('date') else None
+    if statement and statement.get('date'):
+        s.setdefault('statements', {})[broker] = statement  # kept, so later records are checked against it too
+    statement = (s.get('statements') or {}).get(broker) if (statement or new) else None
+    if statement and not any(e.get('broker') == broker for e in s['events']):
+        diffs = 'later'  # a statement before any records: nothing to check yet
+    elif statement and statement.get('date'):
+        diffs = H.reconcile(s, broker, statement)
+    else:
+        diffs = None
     H.save(s)
     return new, diffs
 
@@ -355,7 +408,10 @@ def render(s):
             except ValueError as e:
                 notes.append(('error', f'{name}: {e}'))
                 continue
-            if diffs is None:
+            if diffs == 'later':
+                notes.append(('success', f'{name}: kept. It is the check: read in your Transactions and Account files '
+                                         'too, and the records are checked against it as soon as they are in.'))
+            elif diffs is None:
                 notes.append(('success', f'{name}: {new} new records.'))
             elif not diffs:
                 notes.append(('success', f'{name}: {new} new records. Matches {broker}\'s own figures to the cent and '

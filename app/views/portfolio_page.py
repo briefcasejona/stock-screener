@@ -15,6 +15,16 @@ def markets(key, _s):
     return H.markets(_s)
 
 
+def name(text):
+    """A broker's name for a holding, readable: DeGiro writes "TESLA MOTORS INC. - C" (capitals, cut off)."""
+    import re
+    text = re.sub(r'(\s+-\s*\w{0,2}|\s+CLASS)$', '', (text or '').strip()).rstrip(' -')  # a cut-off tail
+    if text.isupper():
+        text = ' '.join(w if w in ('NV', 'N.V.', 'SE', 'PLC', 'AG', 'SA', 'ETF', 'UCITS', 'USD', 'EUR', 'ASML', 'MSCI',
+                                   'S&P', 'FTSE', 'II', 'III') else w.capitalize() for w in text.split())
+    return text
+
+
 def signed(v, nd=1):
     return f'{v:+.{nd}%}'.replace('-', '−')
 
@@ -63,8 +73,7 @@ def internal_part(s):
 def headline(s, mk):
     mw = H.money_weighted(s, mk)
     pos, cash = H.positions(s)
-    costs = sum(p['costs_eur'] for p in pos.values()) + sum(
-        -H.eur_of(e) for e in s['events'] if e['kind'] in H.COST_KINDS)
+    costs = H.all_costs(s)
     if not mw:
         st.info('No deposits found in your records yet.')
         return
@@ -74,7 +83,8 @@ def headline(s, mk):
     b.metric('Put in from your bank', EUR(mw['put_in']),
              help='Deposits minus withdrawals. Money moving between your brokers is not counted.')
     c.metric('Gain', EUR(gain), signed(gain / mw['put_in']) if mw['put_in'] > 0 else None)
-    d.metric('All costs paid', EUR(costs), help='Broker fees and currency costs on trades, plus other broker fees.')
+    d.metric('All costs paid', EUR(costs), help='Broker fees and currency costs on trades, the commission on changing '
+                                                'money, plus other broker fees.')
     if mw['yours'] is not None:
         x, y = st.columns(2)
         x.metric('Your real return, per year', signed(mw['yours']),
@@ -82,7 +92,8 @@ def headline(s, mk):
                       'make it look better or worse than it is. Over less than a year this figure jumps around.')
         if mw['index'] is not None:
             y.metric('Same money in your index fund, per year', signed(mw['index']),
-                     f"{(mw['yours'] - mw['index']) * 100:+.1f} percentage points for you".replace('-', '−'),
+                     # an ASCII minus: Streamlit reads it to colour the delta red and point the arrow down
+                     f"{(mw['yours'] - mw['index']) * 100:+.1f} percentage points for you",
                      help='Every euro you deposited, put into your index fund on the same day instead.')
     if mw['missing']:
         st.caption('Not yet counted (no price source picked): ' + ', '.join(
@@ -92,6 +103,10 @@ def headline(s, mk):
 def split_part(s, mk, rows, cash_eur, total):
     idx = sum(r['Value'] for r in rows if r['_kind'] == 'index')
     stk = sum(r['Value'] for r in rows if r['_kind'] != 'index')
+    if cash_eur < -0.005 or total <= 0:
+        st.warning(f"Your cash adds up to {EUR(cash_eur)}, below zero: the records probably miss a deposit or one of "
+                   "your broker's files. The shares below (over 100% or negative) are not reliable until you read in "
+                   'the rest.', icon=':material/warning:')
     a, b, c = st.columns(3)
     a.metric('Funds (ETFs)', f'{idx / total:.0%}' if total else 'n/a')
     b.metric('Single stocks', f'{stk / total:.0%}' if total else 'n/a')
@@ -125,7 +140,7 @@ def holdings_rows(s, mk):
         v = p['units'] * px
         gain = v + p['received_eur'] + p['dividends_eur'] - p['paid_eur']
         kind = sec.get('kind') or 'stock'
-        rows.append({'Holding': sec.get('name', isin), 'Kind': 'Fund (ETF)' if kind == 'index' else 'Stock',
+        rows.append({'Holding': name(sec.get('name', isin)), 'Kind': 'Fund (ETF)' if kind == 'index' else 'Stock',
                      'At': ', '.join(b for b, u in p['by_broker'].items() if abs(u) > 1e-9),
                      'Value': v, 'Gain €': gain, 'Gain %': gain / p['paid_eur'] * 100 if p['paid_eur'] else None,
                      'Costs paid': p['costs_eur'], 'Dividends (net)': p['dividends_eur'],
@@ -146,7 +161,7 @@ def review_part(s, mk):
         if v is None:
             col.metric(label, 'n/a', help='Your records don\'t cover this period.')
         else:
-            col.metric(label, signed(v['return']), f"{EUR(v['gain'])}".replace('€-', '−€'), delta_color='normal',
+            col.metric(label, signed(v['return']), ('-' if v['gain'] < 0 else '') + EUR(abs(v['gain'])), delta_color='normal',  # "-" so it shows red
                        help=f"Worth {EUR(v['start_value'])} at the start, {EUR(v['end_value'])} at the end, "
                             f"{EUR(v['added'])} added." + (f" From your first record on {v['from']}." if v.get('from')
                                                           else ''))
@@ -194,12 +209,15 @@ def render():
             table.append({'Holding': 'Cash', 'Kind': 'Cash',
                           'At': ', '.join(sorted({b for (b, c), a in cash_now.items() if abs(a) >= 0.005})),
                           'Value': cv, 'Weight': cv / total * 100 if total else None})
-        show = pd.DataFrame(table)
-        money = st.column_config.NumberColumn(format='€%,.2f')
-        st.dataframe(show, hide_index=True, use_container_width=True, column_config={
-            'Holding': st.column_config.TextColumn(pinned=True), 'Value': money, 'Gain €': money, 'Costs paid': money,
-            'Dividends (net)': money, 'Gain %': st.column_config.NumberColumn(format='%+.1f%%'),
-            'Weight': st.column_config.NumberColumn(format='%.1f%%')})
+        # as text: Streamlit shows an empty number (the cash row has no gain) as "None" whatever the format; the rows
+        # are already in order of value
+        eur = lambda v: '' if v is None else f"{'−' if v < 0 else ''}€{abs(v):,.2f}"
+        pct = lambda v, sign=True: '' if v is None else (f'{v:+.1f}%' if sign else f'{v:.1f}%').replace('-', '−')
+        show = pd.DataFrame([{**r, **{k: eur(r.get(k)) for k in ('Value', 'Gain €', 'Costs paid', 'Dividends (net)')},
+                              'Gain %': pct(r.get('Gain %')), 'Weight': pct(r.get('Weight'), False)} for r in table])
+        st.dataframe(show.fillna(''), hide_index=True, use_container_width=True, column_config={
+            'Holding': st.column_config.TextColumn(pinned=True),
+            'Sector': st.column_config.TextColumn(width='medium')})
         st.caption('Gain = what it is worth + what you got back from selling and dividends − what you paid, costs '
                    'included. Sector and country: Yahoo Finance, for single stocks only (a fund owns thousands of '
                    'companies), and they can be wrong.')
@@ -212,17 +230,21 @@ def render():
                                        for r in rows if r['_units'] > 0]), hide_index=True)
     _, cash = H.positions(s)
     if cash:
-        st.caption('Cash: ' + '; '.join(f'{b} {core.money(a, c)}' for (b, c), a in sorted(cash.items())
-                                        if abs(a) >= 0.005) or 'none')
+        st.caption(core.md('Cash: ' + ('; '.join(f'{b} {core.money(a, c)}' for (b, c), a in sorted(cash.items())
+                                                 if abs(a) >= 0.005) or 'none')))
     st.divider()
     review_part(s, mk)
     st.divider()
-    b3 = H.box3_value(s, mk)
     st.subheader('For Box 3')
+    first = int(min(e['date'] for e in s['events'])[:4])
+    years = list(range(date.today().year, first - 1, -1))
+    y = st.selectbox('Tax return for the year', years, index=years.index(H.box3_year()) if H.box3_year() in years else 0,
+                     help='Your tax return asks for the value on 1 January of that year. Until June, the program '
+                          'assumes you are filling in last year\'s.')
+    b3 = H.box3_value(s, mk, year=y)
     st.write(f"On **{date.fromisoformat(b3['date']):%d %B %Y}** your investments were worth **{EUR(b3['holdings'])}** "
              f"and your cash at the brokers **{EUR(b3['cash'])}**: **{EUR(b3['total'])}** in total, both brokers "
-             'together. Your tax return asks for the value on 1 January; your brokers\' own year statements are the '
-             'official figures, this is to check them.')
+             'together. Your brokers\' own year statements are the official figures; this is to check them.')
     dividends_part(s, mk)
     sold_part(s, mk)
     st.divider()
@@ -239,7 +261,7 @@ def dividends_part(s, mk):
     st.subheader('Dividends')
     st.write(f'Received in the last 12 months, after dividend tax: **{EUR(got)}**.')
     if out:
-        st.dataframe(pd.DataFrame([{'Holding': o['name'], 'Pays in': ', '.join(o['months']),
+        st.dataframe(pd.DataFrame([{'Holding': name(o['name']), 'Pays in': ', '.join(o['months']),
                                     'Last 12 months per share': core.money(o['per_share_12m'], o['currency']),
                                     'On your shares now, per year': EUR(o['yearly_eur'])} for o in out]),
                      hide_index=True)
@@ -264,7 +286,12 @@ def checks_part(s):
             st.error(f"{b}: {c['differences']} difference(s) with the statement of {c['date']}. The figures above "
                      'are not reliable until this is fixed.', icon=':material/error:')
             details = c.get('details') or []
-            st.dataframe(details, hide_index=True)
+            num = lambda d, v: (f"{v:,.2f} {d['what'][5:]}" if d['what'].startswith('cash ') else f'{v:,.4g} shares'
+                                ).replace('-', '−')
+            st.dataframe(pd.DataFrame([{'What': name(d['what']), 'Your records add up to': num(d, d['records']),
+                                        "The broker's statement says": num(d, d['broker']),
+                                        'Difference': num(d, d['broker'] - d['records'])} for d in details]),
+                         hide_index=True)
             small = [d for d in details if d['what'].startswith('cash ') and abs(d['broker'] - d['records']) < 1]
             if small and len(small) == len(details):
                 st.caption('Only a few cents of cash differ. That happens when the broker\'s own export doesn\'t add '
@@ -293,20 +320,28 @@ def sold_part(s, mk):
     if not rows:
         return
     st.subheader('What you sold')
-    st.caption('Selling is a decision too. Since your last sale, prices only, in euros: if a company you sold then '
+    st.caption('Selling is a decision too, a part sale as well. Since your last sale, prices only, in euros: if a company you sold then '
                'trails your index fund, selling was a good call.')
     pct = lambda v: signed(v) if v is not None else 'n/a'
-    st.dataframe(pd.DataFrame([{'Holding': r['name'], 'Sold on': r['sold'], 'Your result': EUR(r['result_eur']),
-                                'It did since': pct(r['stock_since']), 'Index fund since': pct(r['index_since']),
+    st.dataframe(pd.DataFrame([{'Holding': name(r['name']) + (' (part sold)' if r.get('part') else ''),
+                                'Sold on': r['sold'],
+                                'Your result': 'still held in part' if r['result_eur'] is None else EUR(r['result_eur']),
+                                'It did since': pct(r['stock_since']),
+                                'Index fund since': pct(r['index_since']) if r['index_since'] is not None else
+                                'no index price (pick your index fund on the Scoreboard)',
                                 'So far': '' if r['stock_since'] is None or r['index_since'] is None else
-                                ('good call' if r['stock_since'] <= r['index_since'] else 'it did better'),
+                                ('too early to tell' if abs(r['stock_since'] - r['index_since']) < 0.0005 else
+                                 'good call' if r['stock_since'] < r['index_since'] else 'it did better'),
                                 'Why you sold': r['why']} for r in rows]), hide_index=True)
     todo = [r for r in rows if not r['why']]
     if todo:
         with st.form('sold_why'):
-            pick = st.selectbox('Write down why you sold', [r['name'] for r in todo])
+            pick = st.selectbox('Write down why you sold', [r['name'] for r in todo], format_func=name)
             why = st.text_input('Why', placeholder='e.g. bought without research; freeing money for the index fund')
-            if st.form_submit_button('Save') and why.strip():
+            saved = st.form_submit_button('Save')
+            if saved and not core.words(why):
+                st.error('Write a line on why.')
+            elif saved:
                 r = next(r for r in todo if r['name'] == pick)
                 s['securities'][r['isin']]['sold_why'] = why.strip()
                 H.save(s)

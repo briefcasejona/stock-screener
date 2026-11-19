@@ -2,7 +2,6 @@
 import pandas as pd
 import streamlit as st
 
-import commit
 import core
 import course as C
 import course_text as T
@@ -23,7 +22,7 @@ def rule_part(p):
     st.subheader('Your pass/fail rule')
     if p['rule']:
         st.write(f"Written on {p['rule']['date']}, and it stays as it is:")
-        st.info(p['rule']['text'])
+        st.info(core.md(p['rule']['text']))
         return
     st.caption('Decide now what "the course worked" means, before you know how it goes. The suggestion below is yours '
                'to change. Once saved, it can\'t be changed: that keeps the test honest.')
@@ -51,26 +50,45 @@ def writeup_form(step, n):
     if not cands:
         st.info('Analyse a company on the Screener page first; it then shows up on the Candidates page.')
         return
-    names = {c['ticker']: c['company'] for c in cands}
-    ready = {tk for tk in names if commit.get(tk)}
-    st.caption('Before recording: on the Candidates page, write down your own estimate for the company and make at least '
-               'one claim (Journal tab there). ' + (f"Ready now: {', '.join(names[t] for t in ready)}."
-                                                    if ready else 'No company is ready yet.'))
-    with st.form('writeup', clear_on_submit=True):
-        tk = st.selectbox('Company', list(names), format_func=names.get)
-        st.write('Three figures you checked in the annual report (for example: revenue 2025, 10.8 bn USD, page 52).')
+    ready = [c for c in cands if not C.not_ready(c)]
+    if not ready:
+        st.info('No company is ready for a write-up yet. On the Candidates page, pick a company (not the worked example), '
+                'write down your own estimate for it, then make at least one claim about it (Journal tab there).')
+        with st.expander('Why each company is not ready'):
+            for c in cands:
+                st.markdown(f"- {core.md(C.not_ready(c))}")
+        return
+    st.caption('Companies listed: the ones with your own estimate and at least one claim. '
+               + (f"Not ready yet: {', '.join(core.md(c['company']) for c in cands if C.not_ready(c))}".rstrip('.') + '.'
+                  if len(ready) < len(cands) else ''))
+    ss = st.session_state
+    n_ = ss.setdefault('writeup_n', 0)  # a new key after a recorded write-up empties the form; a refused one keeps it
+    with st.form(f'writeup_{n_}'):
+        tk = st.selectbox('Company', [c['ticker'] for c in ready],
+                          format_func=lambda t: next(c['company'] for c in ready if c['ticker'] == t))
+        st.write('Three different figures you checked in the annual report, each with the number and the page (for '
+                 'example: revenue 2025, 10.8 bn USD, page 52). The program\'s own figure is put next to yours where '
+                 'it has one (revenue, EPS, free cash flow per share, ROIC, gross margin).')
         figs = []
         for i in range(3):
             a, b = st.columns([1, 2])
-            figs.append({'name': a.text_input(f'Figure {i + 1}', key=f'fn{i}'),
-                         'report': b.text_input(f'What the report says, and where ({i + 1})', key=f'fr{i}'),
+            figs.append({'name': a.text_input(f'Figure {i + 1}', key=f'fn{i}_{n_}'),
+                         'report': b.text_input(f'What the report says, and where ({i + 1})', key=f'fr{i}_{n_}'),
                          'program': ''})
         dec = st.segmented_control('Decision', C.DECISIONS, default='Wait', required=True,
                                    help='"Buy" means a paper buy during the course; record it on the Scoreboard.')
-        summary = st.text_area('Your conclusion, in one or two lines', height=80)
+        summary = st.text_area('Your conclusion, in one or two lines', height=80, key=f'ws_{n_}')
         if st.form_submit_button('Record the write-up', type='primary'):
-            c = next(x for x in cands if x['ticker'] == tk)
-            do(lambda: C.add(c, dec, figs, summary), 'Recorded, and noted in the journal.')
+            c = next(x for x in ready if x['ticker'] == tk)
+            try:
+                C.add(c, dec, figs, summary, data.dashboard().get('history'))
+            except ValueError as e:
+                st.error(str(e))
+                return
+            ss['writeup_n'] = n_ + 1
+            data.changed()
+            st.toast('Recorded, and noted in the journal.')
+            st.rerun()
 
 
 def do(fn, ok):
@@ -117,5 +135,10 @@ def render():
         st.dataframe(pd.DataFrame([{
             'Date': x['date'], 'Company': x['company'],
             'Step': {'before': 'Before', 'lesson': f"Lesson {x['lesson']}", 'solo': 'Solo'}[x['kind']],
-            'Decision': x['decision'], 'Conclusion': x['summary']} for x in reversed(w)]), hide_index=True,
-            column_config={'Conclusion': st.column_config.TextColumn(width='large')})
+            'Decision': x['decision'], 'Conclusion': x['summary'],
+            'Your figures (program\'s)': '; '.join(f"{f['name']}: {f['report']}" + (f" ({f['program']})" if f.get('program')
+                                                                                   else '') for f in x['figures'])}
+            for x in reversed(w)]), hide_index=True,
+            column_config={'Conclusion': st.column_config.TextColumn(width='large'),
+                           "Your figures (program's)": st.column_config.TextColumn(width='large')})
+        st.caption('A figure of yours far from the program\'s means one of you read it wrong: find out which.')

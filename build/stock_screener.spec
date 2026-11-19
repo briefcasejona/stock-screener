@@ -5,7 +5,7 @@ import glob
 import os
 import sys
 
-from PyInstaller.utils.hooks import collect_all, copy_metadata
+from PyInstaller.utils.hooks import collect_all, collect_data_files, copy_metadata
 
 ROOT = os.path.abspath(os.path.join(SPECPATH, '..'))
 CODE_DIRS = [os.path.join(ROOT, 'app'), os.path.join(ROOT, 'screener', 'code'), os.path.join(ROOT, 'playbook', 'code')]
@@ -16,6 +16,9 @@ for pkg in ('streamlit', 'altair', 'yfinance', 'curl_cffi', 'pymupdf', 'certifi'
     datas += d
     binaries += b
     hiddenimports += h
+# tables use pandas' Styler (blank empty cells), which needs its templates and jinja2
+datas += collect_data_files('pandas.io.formats', includes=['templates/*'])
+hiddenimports += ['jinja2', 'pandas.io.formats.style']
 for pkg in ('streamlit', 'altair', 'pandas', 'numpy', 'pyarrow', 'yfinance', 'pymupdf', 'certifi', 'requests', 'packaging'):
     datas += copy_metadata(pkg)
 

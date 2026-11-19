@@ -1,7 +1,7 @@
 """Scored claims: dated statements about a company that can turn out wrong, checked by the program itself.
 
 A claim says, for example, "free cash flow per share grows at least 8% a year from FY2025 to FY2027, 70% sure".
-It is locked when written. Once the company's figures for the target year are in (the weekly check or a full refresh
+It is locked when written. Once the company's figures for the target year are in (the monthly check or a full refresh
 fetches them), the program works out what happened from the filed figures and marks the claim true or false.
 
 Each claim is also compared with a simple forecast that needs no research: "the last three years' trend continues"
@@ -37,6 +37,36 @@ def load():
 
 def save(claims):
     core.localdata.write_json(PATH, claims, indent=1)
+
+
+def base_year_end(ticker):
+    """(last fiscal year with figures, the day it ended) from the screener's figures."""
+    from refresh_company import find
+    region, _ = find(ticker)
+    rows = [r for r in csv.DictReader(open(f'{core.SCREENER}/output/figures_{region}.csv', encoding='utf-8', errors='replace'))
+            if r['ticker'] == ticker and r.get('period_end')]
+    if not rows:
+        return None, None
+    last = max(rows, key=lambda r: int(r['fiscal_year']))
+    return int(last['fiscal_year']), date.fromisoformat(last['period_end'][:10])
+
+
+def valid_targets(ticker, today=None):
+    """The fiscal years a claim can be about: 1-3 years after the last one with figures, and not yet ended (a year
+    that has ended is already reported, or nearly, so it could be looked up)."""
+    today = today or date.today()
+    base, end = base_year_end(ticker)
+    if base is None:
+        return []
+    out = []
+    for t in range(base + 1, base + 4):
+        try:
+            t_end = end.replace(year=end.year + (t - base))
+        except ValueError:  # 29 February
+            t_end = date(end.year + (t - base), 2, 28)
+        if t_end > today:
+            out.append(t)
+    return out
 
 
 def years(ticker):
@@ -92,13 +122,20 @@ def new(ticker, company, metric, direction, threshold, target_year, confidence, 
     if not ys:
         raise ValueError(f'No yearly figures for {company} yet.')
     base = max(ys)
-    if not base < target_year <= base + 3:
-        raise ValueError(f'The target year must be 1 to 3 years after FY{base}, the last year with figures.')
+    ok = valid_targets(ticker)
+    if int(target_year) not in ok:
+        raise ValueError(f'FY{target_year} can\'t be claimed: a target year must be 1 to 3 years after FY{base} (the '
+                         'last year with figures) and not have ended yet. '
+                         + (f"Possible now: {', '.join(f'FY{y}' for y in ok)}." if ok else 'None is possible now.'))
     if METRICS[metric][1] == 'growth' and not (ys[base].get(metric) or 0) > 0:
         raise ValueError(f'{METRICS[metric][0]} in FY{base} is not positive, so a growth rate from it means nothing. '
                          'Pick another measure.')
-    if not why.strip():
-        raise ValueError('Write one line on why you expect this.')
+    if not core.words(why):
+        raise ValueError('Write one line on why you expect this (a few words at least).')
+    if any(x['ticker'] == ticker and x['metric'] == metric and x['direction'] == direction
+           and abs(x['threshold'] - float(threshold)) < 1e-9 and x['target_year'] == int(target_year)
+           and x.get('outcome') is None for x in load()):
+        raise ValueError('You already made this same claim; it is waiting for its figures.')
     c = {'id': uuid.uuid4().hex[:10], 'made': date.today().isoformat(), 'ticker': ticker, 'company': company,
          'metric': metric, 'direction': direction, 'threshold': float(threshold), 'base_year': base,
          'target_year': int(target_year), 'confidence': int(confidence), 'why': why.strip(), 'source': source,

@@ -111,6 +111,11 @@ def setup_env():
 
 def log_to_file():
     """The app has no text window: what it would print goes to program.log."""
+    try:  # kept small: one older copy, then it starts again
+        if os.path.getsize(LOG) > 5 * 2**20:
+            os.replace(LOG, LOG + '.old')
+    except OSError:
+        pass
     fh = open(LOG, 'a', encoding='utf-8', buffering=1)
     sys.stdout = sys.stderr = fh
 
@@ -156,12 +161,12 @@ def watch_windows(grace=20, first=180):
 
 
 def serve(port, host='127.0.0.1'):
-    """Run Streamlit in this process (it must have the main thread), as `streamlit run app.py` would. `host` is
-    127.0.0.1 (only this computer), or this computer's Tailscale address when "Use on my phone" is on."""
+    """Run Streamlit in this process (it must have the main thread), as `streamlit run app.py` would. It listens on
+    127.0.0.1 only: no other device can reach it (phone access was removed in the 19 Nov 2026 security review)."""
     from streamlit import config
     sys.path.insert(0, APP)
-    import phone
-    hosts = ['127.0.0.1', 'localhost'] if host == '127.0.0.1' else [host, *phone.names()]
+    host = '127.0.0.1'
+    hosts = ['127.0.0.1', 'localhost']
     from streamlit.web import bootstrap
     os.chdir(APP)  # Streamlit reads .streamlit/config.toml from here
     script = os.path.join(APP, 'app.py')
@@ -184,8 +189,8 @@ def serve(port, host='127.0.0.1'):
         except Exception:
             pass
     threading.Thread(target=warm_up, daemon=True).start()
-    # with phone use on, the program keeps running when its window here is closed (Quit stops it)
-    if os.environ.get('STOCK_STOP_WHEN_CLOSED') == '1' and host == '127.0.0.1':
+    # the program stops when its last window is closed
+    if os.environ.get('STOCK_STOP_WHEN_CLOSED') == '1':
         watch_windows()
     bootstrap.load_config_options(flag_options=flags)
     bootstrap.run(script, False, [], flags)
@@ -310,16 +315,14 @@ def update_waiting():
 
 def launch():
     running = running_port()
-    # already running: another window on it. It keeps running while it is used from the phone (or a window is open),
-    # so a newer version would never be installed: then stop it and start again, which installs the update first.
-    if running and not (update_waiting() and stop_running()):
+    # already running: another window on it. A waiting update is offered at the next fresh start, never by stopping
+    # the program you are using (that could lose what you were typing).
+    if running:
         open_window('http://{}:{}'.format(*running))
         return 0
-    # "Use on my phone": only on this computer's Tailscale address, on a fixed port so the phone's bookmark keeps working
     sys.path.insert(0, APP)
-    import phone
-    host = phone.server_options()[0]
-    port = phone.PORT if host != '127.0.0.1' and free_port(phone.PORT, host) == phone.PORT else free_port(host=host)
+    host = '127.0.0.1'  # only this computer
+    port = free_port(host=host)
     # the program starts while the update check asks GitHub, so the window opens sooner
     server = subprocess.Popen(worker_cmd('--serve', str(port), host), stdin=subprocess.DEVNULL, stdout=sys.stdout,
                               stderr=sys.stdout, env={**os.environ, 'STOCK_STOP_WHEN_CLOSED': '1'}, **hidden())
@@ -352,7 +355,8 @@ def launch():
 
 
 def selftest():
-    """For the build machines: start the program, check it answers and every page loads, run a script, stop."""
+    """For the build machines: start the program, check it answers, run a script, stop. (Every page is opened in a real
+    browser by build/ui_check.py.)"""
     port = free_port(8601)
     server = subprocess.Popen(worker_cmd('--serve', str(port)), **hidden())
     try:
@@ -394,7 +398,9 @@ def main():
         return selftest()
     if args[:1] == ['--update-only']:
         import updater
-        return 0 if updater.update_if_available(version(), BASE, relaunch=False, wait=True, window=False) else 1
+        # you typed this command yourself: it installs without asking again
+        return 0 if updater.update_if_available(version(), BASE, relaunch=False, wait=True, window=False,
+                                                 asked=True) else 1
     if FROZEN or sys.stdout is None:
         log_to_file()
     print(f'--- {time.strftime("%Y-%m-%d %H:%M:%S")} {NAME} {version()} starting')

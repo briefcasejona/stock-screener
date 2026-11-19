@@ -7,6 +7,7 @@ Run: python3 -I code/build_screen_data.py
 import csv
 import json
 import os
+import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -16,7 +17,11 @@ BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REGIONS = {'us': 'US', 'eu': 'Europe'}
 NUM = ['roic_median', 'roic_min', 'fcf_to_net_income', 'net_debt_m', 'net_debt_to_fcf', 'margin_median', 'margin_min',
        'shares_change',
-       'revenue_growth', 'revenue_growth_3y', 'fcf_ps_growth', 'implied_growth', 'pe', 'fcf_yield', 'price']
+       'revenue_growth', 'revenue_growth_3y', 'fcf_ps_growth', 'implied_growth', 'base_growth', 'pe', 'fcf_yield', 'price']
+# the US list (SEC/Yahoo) and the European list name the same sectors differently: one name each
+SECTORS = {'Basic Materials': 'Materials', 'Consumer Cyclical': 'Consumer Discretionary',
+           'Consumer Defensive': 'Consumer Staples', 'Healthcare': 'Health Care', 'Technology': 'Information Technology',
+           'Financial Services': 'Financials', 'Communication': 'Communication Services'}
 TESTS = ['q_roic', 'q_roic_min', 'q_cash_conversion', 'q_debt', 'q_margins', 'q_dilution',
          'g_revenue', 'g_fcf_ps', 'g_still_growing', 'g_price']
 
@@ -50,17 +55,29 @@ def main():
             source[r['ticker']] = r.get('source') or 'SEC'
         for r in csv.DictReader(open(path, encoding='utf-8', errors='replace')):
             here = 'US' if r['ticker'] in us_added else label  # US companies the user added are kept in the eu files
-            row = {'ticker': r['ticker'], 'company': names.get(r['ticker'], r['name']).replace('|', '').strip(), 'region': here, 'sector': r['sector'],
+            row = {'ticker': r['ticker'], 'company': names.get(r['ticker'], r['name']).replace('|', '').strip(), 'region': here, 'sector': SECTORS.get(r['sector'], r['sector']),
                    'source': source.get(r['ticker'], ''), 'years': int(r['years']),
                    'first_year': int(r['first_year']), 'last_year': int(r['last_year']),
                    'report_currency': r['report_currency'], 'price_currency': r['price_currency'],
                    'quality_passed': int(r['quality_passed']), 'garp_passed': int(r['garp_passed']),
-                   'passed': int(r['passed']), 'margin_kind': r['margin_kind'], 'data_flags': r['data_flags']}
+                   'passed': int(r['passed']), 'margin_kind': r['margin_kind'], 'data_flags': r['data_flags'],
+                   'price_date': r.get('price_date', ''), 'price_why': r.get('price_why', ''),
+                   'data_check': bool(r.get('data_check'))}
             for k in NUM:
                 row[k] = num(r[k], 2 if k in ('pe', 'price', 'net_debt_m') else 4)
             for k in TESTS:
                 row[k] = r[k]
             out.append(row)
+    # one row per company: two share classes of one company (GOOGL and GOOG, FOXA and FOX) have the same figures, so
+    # one is kept: the class A shares
+    base = lambda name: re.sub(r'\s*\(Class [A-Z]\)$', '', name)
+    seen, kept = set(), []
+    for o in sorted(out, key=lambda o: ('(Class A)' not in o['company'], o['ticker'])):
+        k = (base(o['company']), o['region'], o['revenue_growth'], o['roic_median'])
+        if k not in seen:
+            seen.add(k)
+            kept.append(o)
+    out = kept
     out.sort(key=lambda o: (-o['passed'], -o['quality_passed'], o['implied_growth'] if o['implied_growth'] is not None else 9))
     os.makedirs(f'{BASE}/dashboard', exist_ok=True)
     json.dump(out, open(f'{BASE}/dashboard/screen.json', 'w', encoding='utf-8'), separators=(',', ':'))

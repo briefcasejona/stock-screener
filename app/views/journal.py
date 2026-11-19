@@ -2,6 +2,7 @@
 import pandas as pd
 import streamlit as st
 
+import commit
 import core
 from views import data
 from views.candidates import journal_form, newest_first
@@ -11,7 +12,7 @@ def render():
     d = data.dashboard()
     entries = newest_first(d['journal'])
     st.title('Journal')
-    st.caption('Why you bought, waited or passed, written at the time. Reading it back later is how you learn which '
+    st.caption('Why you bought, waited or said no, written at the time. Reading it back later is how you learn which '
                'of your judgements held up. Entries are never edited: write a new one when you change your mind. '
                + core.DISCLAIMER)
     who = st.segmented_control('Written by', ['Everyone', 'You', 'The program'], default='Everyone', required=True)
@@ -19,22 +20,51 @@ def render():
         entries = [e for e in entries if e.get('author') == 'You']
     elif who == 'The program':
         entries = [e for e in entries if e.get('author') != 'You']
+    # before your own estimate of a company, the program's notes on it would give its valuation away
+    wl = {w['ticker']: w for w in core.watchlist()}
+    open_book = {c['company'] for c in d['candidates']
+                 if (wl.get(c['ticker']) or {}).get('worked_example') or commit.get(c['ticker'])}
+    known = {c['company'] for c in d['candidates']}
+    hidden = lambda e: e.get('author') != 'You' and e['company'] in known and e['company'] not in open_book
+    companies = sorted({e['company'] for e in entries})
+    pick = st.multiselect('Company', companies, placeholder='All companies', key='jr_companies')
+    if pick:
+        entries = [e for e in entries if e['company'] in pick]
     if entries:
-        st.dataframe(pd.DataFrame([{
-            'Date': e['date'], 'Company': e['company'], 'Decision': e['decision'],
-            'Price': core.money(e['price'], e['currency']), 'Base value': core.money(e.get('base'), e['currency']),
-            'Growth the price assumed': core.pct(e.get('implied_growth')), 'Why': e['why'],
+        why = lambda e: 'shown once you have locked in your own estimate' if hidden(e) else e['why']
+        # your own words come first, so they stay in view on a small screen; click a row to read the entry in full
+        ev = st.dataframe(pd.DataFrame([{
+            'Date': e['date'], 'Company': e['company'], 'Decision': core.word(e.get('decision')), 'Why': why(e),
             'What would change my mind': e.get('change_mind', ''), 'Next check': e.get('next_check', ''),
-            'By': e.get('author', '')} for e in entries]), hide_index=True,
+            'Price': '' if e.get('price') is None else core.price_text(e),
+            'By': e.get('author', '')} for e in entries]), hide_index=True, on_select='rerun',
+            selection_mode=['single-row', 'single-cell'], key=f"jr_table_{who}_{'|'.join(pick)}",
             column_config={'Company': st.column_config.TextColumn('Company', pinned=True),
                            'Why': st.column_config.TextColumn(width='large')})
+        i = core.picked(ev, len(entries), st.session_state.get('jr_open'),
+                        st.session_state.setdefault(f"pick_jr_{who}_{'|'.join(pick)}", {}))
+        st.session_state['jr_open'] = i
+        if i is not None:
+            e = entries[i]
+            with st.container(border=True):
+                st.markdown(f"**{core.md(e['company'])}** · {e['date']} · {core.md(core.word(e.get('decision')))}"
+                            + (f" · price {core.md(core.price_text(e))}" if e.get('price') is not None
+                               else '') + f" · by {core.md(e.get('author', ''))}")
+                st.markdown(core.md(why(e)))
+                if e.get('change_mind'):
+                    st.markdown('**What would change my mind:** ' + core.md(e['change_mind']))
+                if e.get('next_check'):
+                    st.markdown('**Next check:** ' + core.md(e['next_check']))
+        else:
+            st.caption('Click or tap a row to read the entry in full.')
     else:
         st.info('No entries yet.')
     claims_part()
     cands = d['candidates']
     if cands:
         st.divider()
-        name = st.selectbox('Write an entry about', [c['company'] for c in cands])
+        focus = next((i for i, c in enumerate(cands) if c['ticker'] == st.session_state.get('cand_ticker')), 0)
+        name = st.selectbox('Write an entry about', [c['company'] for c in cands], index=focus)
         journal_form(next(c for c in cands if c['company'] == name), key='_journal_page')
 
 
@@ -49,7 +79,7 @@ def claims_part():
     a, b, c = st.columns(3)
     a.metric('Waiting for figures', r['open'])
     a2 = r.get('hit')
-    b.metric('Came true', 'n/a' if a2 is None else f"{a2:.0%}", f"of {r['settled']} checked", delta_color='off')
+    b.metric(f"Came true (of {r['settled']} checked)", 'n/a' if a2 is None else f"{a2:.0%}")
     nh = r.get('naive_hit')
     c.metric('Simple forecast right', 'n/a' if nh is None else f"{nh:.0%}",
              help='The same claims, judged by "the last three years\' trend continues" (for a margin: "it stays where '

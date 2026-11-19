@@ -3,8 +3,23 @@
 /* Type: big text tighter (negative tracking, tight leading), body text as the system sets it */
 h1 { letter-spacing: -0.028em; line-height: 1.07; }
 h2, h3 { letter-spacing: -0.016em; line-height: 1.18; }
-[data-testid="stMetricValue"] { letter-spacing: -0.022em; font-variant-numeric: tabular-nums; }
+[data-testid="stMetricValue"] { letter-spacing: -0.022em; font-variant-numeric: tabular-nums;
+  font-size: clamp(1.5rem, 2.4vw, 2.25rem); }
 [data-testid="stMetricLabel"] p { font-weight: 500; }
+/* Figures and their labels wrap instead of being cut off ("+17.…") on a narrow window or when zoomed in */
+[data-testid="stMetricValue"] > div, [data-testid="stMetricLabel"] div, [data-testid="stMetricLabel"] p,
+[data-testid="stMetricDelta"] div { white-space: normal !important; overflow: visible !important;
+  text-overflow: clip !important; overflow-wrap: anywhere; }
+[data-testid="stBaseButton-secondary"] p, [data-testid="stBaseButton-tertiary"] p { white-space: normal; }
+
+/* The sidebar is narrower, and its open/close button is always visible (not only on mouse-over: touch screens) */
+[data-testid="stSidebar"][aria-expanded="true"] { min-width: 220px !important; max-width: 240px !important; }
+[data-testid="stSidebarCollapseButton"], [data-testid="stExpandSidebarButton"],
+[data-testid="stSidebarCollapsedControl"] { opacity: 1 !important; visibility: visible !important; }
+
+/* A visible focus ring for keyboard users, on the page links at the top and on buttons */
+a[data-testid="stTopNavLink"]:focus-visible, button:focus-visible, [role="tab"]:focus-visible {
+  outline: 2px solid #0071e3 !important; outline-offset: 2px; }
 [data-testid="stCaptionContainer"] { line-height: 1.5; }
 
 /* A calmer column: generous margins, content not stretched across a wide screen */
@@ -25,8 +40,8 @@ header[data-testid="stHeader"] {
 [data-testid="stBaseButton-primary"], [data-testid="stBaseButton-secondary"],
 [data-testid="stDownloadButton"] button, [data-testid="stFormSubmitButton"] button { border-radius: 999px; }
 
-/* Segmented controls stay on one line; in the sidebar they share its width evenly */
-[data-testid="stButtonGroup"] > div { flex-wrap: nowrap; }
+/* Segmented controls and pills wrap onto a second line when the window is narrow, never hide an option */
+[data-testid="stButtonGroup"] > div { flex-wrap: wrap; row-gap: 4px; }
 [data-testid="stSidebar"] [data-testid="stElementContainer"]:has(> [data-testid="stButtonGroup"]),
 [data-testid="stSidebar"] [data-testid="stButtonGroup"],
 [data-testid="stSidebar"] [data-testid="stButtonGroup"] > div { width: 100% !important; max-width: none !important; }
@@ -60,7 +75,7 @@ hr { opacity: 0.6; }
   header[data-testid="stHeader"] { background: #161617; }
 }
 
-/* On a phone (opened over Tailscale): less empty space at the top and sides, smaller big headings, and tables that
+/* On a narrow window or a tablet: less empty space at the top and sides, smaller big headings, and tables that
    scroll sideways inside themselves instead of widening the page */
 @media (max-width: 640px) {
   [data-testid="stMainBlockContainer"] { padding: 3.75rem 0.875rem 2rem; }

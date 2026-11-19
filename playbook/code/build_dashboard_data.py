@@ -12,6 +12,10 @@ import sys
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(os.path.dirname(BASE), 'screener', 'code'))
 import localdata  # noqa: E402
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from analyse import margin  # noqa: E402
+from asml_example import SCENARIOS  # noqa: E402
+from valuation import dcf  # noqa: E402
 
 JOURNAL_DIR = localdata.JOURNAL_DIR
 OUT = f'{BASE}/dashboard'
@@ -23,7 +27,10 @@ r4 = lambda x: round(x, 4)
 def build():
     """The five datasets as lists of rows (the laptop program reads these directly)."""
     a = json.load(open(f'{BASE}/output/asml_example.json', encoding='utf-8', errors='replace'))
-    q, g, s = a['quality'], a['growth'], a['scenarios']
+    q, g = a['quality'], a['growth']
+    # the values are worked out here from the saved cash flow, so a change of rates applies without new downloads
+    s = {name: dcf(a['fcf0'], net_cash=a['net_cash_ps'], **p) | p for name, p in SCENARIOS.items()}
+    m = margin()
     company = 'ASML'
     hist = {h['year']: h for h in a['history']}
     revenue_3y = (hist[2025]['revenue_m'] / hist[2022]['revenue_m']) ** (1 / 3) - 1
@@ -62,19 +69,20 @@ def build():
         'company': company, 'ticker': 'ASML.AS', 'exchange': 'Euronext Amsterdam', 'currency': 'EUR',
         'price': r2(a['price']), 'price_date': a['price_date'],
         'bear': r1(s['bear']['value']), 'base': r1(s['base']['value']), 'bull': r1(s['bull']['value']),
-        # buy-below = base value minus the default 30% margin of safety (19 Oct 2026; it used to be the bear value)
-        'buy_below': r1(s['base']['value'] * 0.7), 'price_to_buy_below': r2(a['price'] / (s['base']['value'] * 0.7)),
+        # buy-below = base value minus your margin of safety
+        'buy_below': r1(s['base']['value'] * (1 - m / 100)),
+        'price_to_buy_below': r2(a['price'] / (s['base']['value'] * (1 - m / 100))),
         'implied_growth': r4(a['implied_growth']), 'delivered_growth': r4(g['fcf_ps_cagr_3yavg_2017_to_2024']),
         'pe_ltm': r1(a['pe_ltm']), 'pe_median_10y': r1(a['pe_median_2016_2025']),
         'pe_min_10y': r1(a['pe_min']), 'pe_max_10y': r1(a['pe_max']),
         'fcf0': r2(a['fcf0']), 'net_cash_per_share': r2(a['net_cash_ps']),
         'quality_passed': passed('Quality'), 'quality_total': total('Quality'),
         'garp_passed': passed('GARP'), 'garp_total': total('GARP'),
-        'decision': 'Buy' if a['price'] <= s['base']['value'] * 0.7 else 'Wait',
+        'reviewed': False, 'years': len(a['history']), 'first_year': a['history'][0]['year'],
         'next_check': 'Full-year 2026 results, late January 2027',
         'pe_basis': 'P/E, latest 12 months', 'follow': 'One-time', 'analysed': a['price_date'], 'region': 'Europe',
         'figures_to': '2026-09-27', 'fcf_basis': 'normalised (cyclical: average margin x latest 12 months revenue)',
-        'assumptions_source': 'set by hand in the worked example', 'notes': '',
+        'assumptions_source': 'the worked example\'s growth rates (yours to review)', 'notes': '',
     }]
     scenarios = [{'company': company, 'scenario': name.capitalize(), 'growth': v['g'], 'discount_rate': v['r'],
                   'long_term_growth': v['g_t'], 'value': r1(v['value']), 'after_year_10': r4(v['terminal_share'])}

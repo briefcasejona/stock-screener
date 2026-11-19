@@ -28,7 +28,12 @@ ADDED = os.path.join(DATA, 'added_companies.csv')
 SETTINGS = os.path.join(DATA, 'settings.json')
 BACKUPS = os.path.join(DATA, 'backups')
 KEEP_BACKUPS = 20
-MARGINS = (5, 10, 20, 30)
+# set when the data folder changed while the program runs: the pages then only ask for a restart
+RESTART_NEEDED = None
+KEEP_BACKUPS_SYNCED = 5  # in a Google Drive (or similar) folder: fewer copies of everything in the cloud
+MARGINS = (10, 20, 30)  # 5% was dropped (council, 10 Nov 2026): too thin to protect against hopeful growth rates
+DEFAULT_MARGIN = 20  # the owner's choice (19 Nov 2026 plan)
+CHECK_DAYS = 30  # the companies you follow are checked once a month (19 Oct 2026 plan; it was weekly)
 DISCLAIMER = 'Educational, not personal financial advice.'
 
 # these must be set before the screener's code is imported (and the scripts it runs inherit them)
@@ -81,6 +86,8 @@ def settings():
 
 def save_setting(**kw):
     localdata.write_json(SETTINGS, settings() | kw, indent=1)
+    if 'margin' in kw:
+        os.environ['STOCK_MARGIN'] = str(kw['margin'])
     if 'sec_contact' in kw:  # the scripts started from now on send it to the SEC
         os.environ['SEC_CONTACT'] = kw['sec_contact']
 
@@ -90,8 +97,11 @@ if settings().get('sec_contact'):
 
 
 def margin():
-    m = settings().get('margin', 30)
-    return m if m in MARGINS else 30
+    m = settings().get('margin', DEFAULT_MARGIN)
+    return m if m in MARGINS else DEFAULT_MARGIN
+
+
+os.environ['STOCK_MARGIN'] = str(margin())  # the watchlist's notes use your margin too
 
 
 # ---------- data ----------
@@ -110,9 +120,55 @@ def data_stamp():
 
 
 def load_dashboard():
-    """candidates, scenarios, checks, history, journal: the same five datasets as the online dashboard."""
+    """candidates, scenarios, checks, history, journal: the same five datasets as the online dashboard. Each candidate
+    gets the newest price the program has (see latest_prices), so every page shows one price with its date."""
     import build_dashboard_data
-    return build_dashboard_data.build()
+    d = build_dashboard_data.build()
+    freshen(d['candidates'])
+    return d
+
+
+def latest_prices():
+    """{ticker: (price, currency, date)}: the newest close per company from the screener's price files (a price refresh,
+    the monthly check and every analysis update them). Pence-quoted London prices are turned into pounds."""
+    import csv
+    out = {}
+    for region in ('us', 'eu'):
+        path = os.path.join(SCREENER, 'raw', f'prices_{region}.csv')
+        if not os.path.exists(path):
+            continue
+        for r in csv.DictReader(open(path, encoding='utf-8', errors='replace')):
+            try:
+                p, cur = float(r['price']), r.get('currency') or ''
+            except (KeyError, ValueError):
+                continue
+            if cur in ('GBp', 'GBX'):
+                p, cur = p / 100, 'GBP'
+            old = out.get(r['ticker'])
+            if not old or (r.get('date') or '') > old[2]:
+                out[r['ticker']] = (p, cur, r.get('date') or '')
+    return out
+
+
+def freshen(cands, prices=None):
+    """Bring each candidate's price up to the newest one the program has (it was the price on the day of the analysis),
+    and with it the growth the price assumes. The values (bear/base/bull) don't depend on the price, so they stay.
+    One price per company on every page: the Screener, Candidates, the journal and the Scoreboard's snapshot."""
+    from valuation import reverse_dcf
+    prices = latest_prices() if prices is None else prices
+    for c in cands:
+        new = prices.get(c['ticker'])
+        if not new or new[1] != c.get('currency') or new[2] <= (c.get('price_date') or ''):
+            continue
+        c['price'], c['price_date'] = round(new[0], 2), new[2]
+        if c.get('fcf0') and c['fcf0'] > 0 and c.get('net_cash_per_share') is not None:
+            try:
+                c['implied_growth'] = round(reverse_dcf(c['price'], c['fcf0'], 0.09, 0.025, c['net_cash_per_share']), 4)
+            except ValueError:
+                c['implied_growth'] = None
+        if c.get('buy_below'):
+            c['price_to_buy_below'] = round(c['price'] / c['buy_below'], 2)
+    return cands
 
 
 def load_screen():
@@ -126,28 +182,138 @@ def watchlist():
 
 
 def reviewed(cand):
-    """Growth rates someone chose after reading the annual report (the worked example's were)."""
+    """True only when YOU ticked "I read the latest annual report and chose these growth rates myself" when you saved
+    them. The starting rule's rates ("not yet reviewed") and the worked example's (chosen in the playbook, not by you)
+    are not reviewed. (It used to look for the word "reviewed" in the description, which "not yet reviewed" matched.)"""
+    if 'reviewed' in cand:
+        return cand['reviewed'] is True
     src = cand.get('assumptions_source', '')
-    return 'reviewed' in src or 'worked example' in src
+    return src.endswith(', reviewed')  # analyses saved before 19 Nov 2026: "set by hand, reviewed"
 
 
 def buy_below(cand, m):
     return cand['base'] * (1 - m / 100)
 
 
-def decision(cand, m):
-    """The playbook's decision at a margin of safety: buy only with reviewed growth rates."""
-    if cand['price'] <= buy_below(cand, m):
-        return 'Buy' if reviewed(cand) else 'Deep dive'
-    return 'Wait'
+def price_vs_buy_below(cand, m):
+    """How far today's price is above (+) or below (−) the buy-below price, as a fraction."""
+    bb = buy_below(cand, m)
+    return cand['price'] / bb - 1 if bb > 0 else None
+
+
+def position(cand, m):
+    """The plain fact, not advice: is the price above or at/below the buy-below price?"""
+    gap = price_vs_buy_below(cand, m)
+    if gap is None:
+        return 'No buy-below price'
+    return 'At or below buy-below' if gap <= 0 else 'Above buy-below'
+
+
+# your journal decisions; "Pass" was renamed "No" (one word for one thing: "Pass" also means a passed check)
+DECISIONS = ('Buy', 'Wait', 'No', 'Sell', 'Still researching')
+OLD_WORDS = {'Pass': 'No', 'Deep dive': 'Still researching'}
+
+
+def word(decision):
+    return OLD_WORDS.get(decision, decision)
+
+
+def my_decision(cand, journal):
+    """Your latest decision on a company from your own journal entries: (decision, date), or (None, None)."""
+    mine = [e for e in journal if e.get('author') == 'You' and e.get('company') == cand['company']
+            and word(e.get('decision')) in DECISIONS]
+    if not mine:
+        return None, None
+    last = max(enumerate(mine), key=lambda x: (x[1]['date'], x[0]))[1]
+    return word(last['decision']), last['date']
+
+
+def migrate():
+    """One-time fixes to data saved by older versions; each runs once (settings: "migrated")."""
+    done = set(settings().get('migrated', []))
+    if 'asml_correction' not in done:
+        # The worked example's journal entry said "Buy-below is €527" (the old bear value at a 10% rate). Entries are
+        # never edited, so a correction is added after it.
+        path = f'{JOURNAL_DIR}/journal.json'
+        entries = json.load(open(path, encoding='utf-8', errors='replace')) if os.path.exists(path) else []
+        if any(e.get('company') == 'ASML' and '€527' in e.get('why', '') for e in entries):
+            add_journal_entry({'date': date.today().isoformat(), 'ticker': 'ASML', 'company': 'ASML', 'decision': 'Note',
+                               'price': None, 'currency': 'EUR',
+                               'why': 'Correction to the worked example of 19 Oct 2026: its "buy-below €527" used the old '
+                                      'rule (the bear value, at a 10% discount rate). Every scenario now uses 9%, and '
+                                      'buy-below is the base value minus your margin of safety; the Candidates page '
+                                      'shows the current figure.',
+                               'change_mind': '', 'next_check': '', 'author': 'Program (correction)'})
+        done.add('asml_correction')
+    if 'phone_off' not in done:
+        # phone access and the automatic phone PDF were removed (security review, 19 Nov 2026)
+        for p in (os.path.join(DATA, 'Phone view.pdf'), os.path.join(os.path.expanduser('~'), '.stockscreener-phone.json')):
+            try:
+                os.remove(p)
+            except OSError:
+                pass
+        done.add('phone_off')
+    save_setting(migrated=sorted(done))
+
+
+def show_check_result(out, where):
+    """What a monthly check found, in plain words: changes, companies at or below your buy-below price, problems."""
+    for ev in out.get('events', []):
+        what = {'annual report': 'new annual report, analysis re-run', 'interim report': 'new quarterly or half-year report',
+                'price crossed buy-below': 'price crossed your buy-below price'}.get(ev['event'], ev['event'])
+        where.markdown(md(f"- **{ev['company']}**: {what}"))
+    zone = out.get('in_buy_zone', [])
+    if zone:
+        where.markdown(md('**At or below your buy-below price now:** ' + ', '.join(
+            f"{z['company']} ({money(z['price'], z['currency'])}, buy-below {money(z['buy_below'], z['currency'])})"
+            for z in zone) + '. Whether to buy is your decision, after reading the latest annual report.'))
+    for pr in out.get('problems', []):
+        where.warning(md(f"{pr['ticker']}: {pr['problem']}"))
+
+
+def price_text(e):
+    """A journal entry's price, with its own date when that is not the entry's date ("€1,496 on 2026-10-19")."""
+    d = e.get('price_date')
+    return money(e['price'], e.get('currency', '')) + (f' on {d}' if d and d != e.get('date') else '')
 
 
 def money(v, cur):
     if v is None:
         return 'n/a'
-    sym = {'EUR': '€', 'USD': '$', 'GBP': '£'}.get(cur)
-    txt = f'{v:,.2f}' if abs(v) < 100 else f'{v:,.0f}'
-    return f'{sym}{txt}' if sym else f'{cur} {txt}'
+    sym = {'EUR': '€', 'USD': '$', 'GBP': '£', 'CHF': 'CHF ', 'DKK': 'DKK ', 'SEK': 'SEK ', 'NOK': 'NOK '}.get(cur)
+    txt = f'{abs(v):,.2f}' if abs(v) < 100 else f'{abs(v):,.0f}'
+    sign = '−' if v < 0 else ''
+    return f'{sign}{sym}{txt}' if sym else f'{sign}{cur} {txt}'
+
+
+def picked(ev, n, current=None, memo=None):
+    """The row a table selection points at. A table can hold a row selection and a cell selection at once (a ticked row,
+    then a click in another row's cell), and both stay on later reruns: the one that is new since the last run is the
+    choice. `memo` is a dict kept between runs (for example in st.session_state)."""
+    sel = getattr(ev, 'selection', None)
+    found = [i for i in list(getattr(sel, 'rows', []) or []) + [c[0] for c in getattr(sel, 'cells', []) or []] if i < n]
+    before = (memo or {}).get('found', [])
+    if memo is not None:
+        memo['found'] = found
+    if not found:
+        return None
+    new = [i for i in found if i not in before]
+    if new:
+        return new[-1]
+    return current if current in found else found[-1]
+
+
+def words(text, least=10):
+    """True when `text` says something: at least `least` letters or digits (not "x", ".", or an emoji)."""
+    import unicodedata
+    return sum(unicodedata.category(ch)[0] in 'LN' for ch in (text or '')) >= least
+
+
+def md(text):
+    """Text for st.markdown / st.write / captions: a "$" would start a maths formula there ("$350 ... $400" turned into
+    green code with the dollar signs gone), so it is escaped."""
+    # "![...](link)" would load a picture from the internet when the page shows: written as text instead
+    return str(text).replace('$', '\\$').replace('![', '!\\[')
 
 
 def data_notes(text):
@@ -219,12 +385,17 @@ def wl(cmd, **kw):
         return None, f'{type(e).__name__}: {e}'
 
 
-def weekly_check_due():
+def next_check_date():
+    from datetime import timedelta
     last = settings().get('last_check')
-    return not last or (date.today() - date.fromisoformat(last)).days >= 7
+    return date.fromisoformat(last) + timedelta(days=CHECK_DAYS) if last else date.today()
 
 
-def run_weekly_check():
+def check_due():
+    return date.today() >= next_check_date()
+
+
+def run_check():
     out, err = wl('check')
     if out is not None:
         save_setting(last_check=out['at'], last_check_result=out)
@@ -345,14 +516,15 @@ def own_reports():
         d = json.load(open(p, encoding='utf-8', errors='replace'))
         out.append({'Company': d['ticker'], 'Period end': d['period_end'],
                     'Kind': 'Quarterly / half-year' if d['kind'] == 'interim' else 'Annual, ' + d['kind'].upper(),
-                    'File': d['source_file'], 'Added': d['added'], 'Figures': len(d['facts'])})
+                    'File': d['source_file'], 'Added': d['added'], 'Figures': len(d['facts']), '_path': p})
     return out
 
 
 # ---------- backups ----------
 
 BACKUP_PARTS = ['journal', 'user_reports', 'pdf_maps', 'added_companies.csv', 'settings.json', 'portfolio.json',
-                'claims.json', 'commitments.json', 'course.json']
+                'claims.json', 'commitments.json', 'course.json', 'holdings.json', 'drills.json']
+KEEP_ON_RESTORE = ('sec_contact',)  # this computer's own settings, kept when a backup doesn't have them
 MAX_RESTORE = 500 * 2**20  # a backup that unpacks to more than this is not one of ours
 
 
@@ -384,7 +556,8 @@ def save_backup(why='automatic'):
         fh.write(data)
     os.replace(tmp, path)
     old = sorted(f for f in os.listdir(BACKUPS) if f.startswith('backup ') and f.endswith('.zip'))
-    for f in old[:-KEEP_BACKUPS]:
+    import datafolder as _df
+    for f in old[:-(KEEP_BACKUPS if DATA == _df.DEFAULT else KEEP_BACKUPS_SYNCED)]:
         os.remove(os.path.join(BACKUPS, f))
     return path
 
@@ -412,6 +585,20 @@ def restore_backup(file):
     for i in infos:  # read all of it first: a broken zip changes nothing
         z.read(i)
     safety = save_backup('before restore')
+    keep = {k: v for k, v in settings().items() if k in KEEP_ON_RESTORE}
+    # a full replace: what the backup doesn't have is removed (it is in the safety backup), so you never end up with
+    # half the old state and half the new
+    names = {i.filename for i in infos}
+    for part in BACKUP_PARTS:
+        full = os.path.join(DATA, part)
+        if os.path.isfile(full) and part not in names:
+            os.remove(full)
+        elif os.path.isdir(full):
+            for d, _, files in os.walk(full):
+                for f in files:
+                    rel = os.path.relpath(os.path.join(d, f), DATA).replace(os.sep, '/')
+                    if rel not in names:
+                        os.remove(os.path.join(d, f))
     for i in infos:
         dst = os.path.join(DATA, *i.filename.split('/'))
         os.makedirs(os.path.dirname(dst), exist_ok=True)
@@ -419,4 +606,8 @@ def restore_backup(file):
         with open(tmp, 'wb') as out:
             out.write(z.read(i))
         os.replace(tmp, dst)
+    if keep:
+        restored = settings()
+        save_setting(**{k: v for k, v in keep.items() if not restored.get(k)})
+    prepare_data()
     return len(infos), safety

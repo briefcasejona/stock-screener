@@ -20,7 +20,8 @@ DEFAULT = os.path.join(HOME, 'StockScreener data')
 POINTER = os.path.join(HOME, '.stockscreener-data-folder')
 NAME = 'StockScreener data'
 LOCK = 'in use.json'
-FRESH = timedelta(minutes=30)  # a note older than this is from a program that has stopped
+FRESH = timedelta(minutes=15)  # a note older than this is from a program that has stopped (it is refreshed every 5)
+ID_FILE = os.path.join(HOME, '.stockscreener-id')
 
 
 def current():
@@ -128,13 +129,32 @@ def me():
     return platform.node() or 'this computer'
 
 
+def my_id():
+    """A random id for this computer, kept in the home folder: two computers with the same name still differ."""
+    try:
+        with open(ID_FILE, encoding='utf-8') as fh:
+            v = fh.read().strip()
+        if v:
+            return v
+    except OSError:
+        pass
+    import secrets
+    v = secrets.token_hex(8)
+    try:
+        with open(ID_FILE, 'w', encoding='utf-8') as fh:
+            fh.write(v)
+    except OSError:
+        pass
+    return v
+
+
 def mark_in_use(folder):
     """Note that this computer has the data open (refreshed now and then while the program runs)."""
     try:
         path = os.path.join(folder, LOCK)
         tmp = path + '.tmp'
         with open(tmp, 'w', encoding='utf-8') as fh:
-            json.dump({'computer': me(), 'since': datetime.now().isoformat(timespec='seconds')}, fh)
+            json.dump({'computer': me(), 'id': my_id(), 'since': datetime.now().isoformat(timespec='seconds')}, fh)
         os.replace(tmp, path)
     except OSError:
         pass
@@ -147,7 +167,8 @@ def other_user(folder):
         when = datetime.fromisoformat(d['since'])
     except (OSError, ValueError, KeyError):
         return None
-    if d.get('computer') != me() and datetime.now() - when < FRESH:
+    mine = d.get('id') == my_id() if d.get('id') else d.get('computer') == me()  # older notes have no id
+    if not mine and datetime.now() - when < FRESH:
         return d.get('computer'), when
     return None
 
@@ -155,7 +176,28 @@ def other_user(folder):
 def release(folder):
     try:
         d = json.load(open(os.path.join(folder, LOCK), encoding='utf-8', errors='replace'))
-        if d.get('computer') == me():
+        if (d.get('id') == my_id()) if d.get('id') else d.get('computer') == me():
             os.remove(os.path.join(folder, LOCK))
     except (OSError, ValueError):
         pass
+
+
+_keeper = None
+
+
+def keep_marked(folder):
+    """Refresh this computer's note every 5 minutes for as long as the program runs (not only while a window is open),
+    unless another computer has the data open. Started once per program."""
+    global _keeper
+    if _keeper:
+        return
+    import threading
+    import time
+
+    def run():
+        while True:
+            if not other_user(folder):
+                mark_in_use(folder)
+            time.sleep(300)
+    _keeper = threading.Thread(target=run, daemon=True, name='in-use note')
+    _keeper.start()

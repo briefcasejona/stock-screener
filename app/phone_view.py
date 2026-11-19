@@ -1,24 +1,14 @@
-"""The read-only phone view: a PDF summary of your candidates, scoreboard, course and journal, saved in your data
-folder. With the data folder in Google Drive, the Google Drive app on your phone shows it, also when the computer is
-off. It is a snapshot: prices are as of the moment it was made (shown at the top)."""
+"""A summary PDF of your candidates, scoreboard, course and journal, made only when you ask for it (Update data page)
+and handed to you as a download: nothing is saved or synced by itself. Your real holdings and amounts are left out
+unless you tick the box. It is a snapshot: prices are as of the moment it was made (shown at the top).
+(Until 19 Nov 2026 this was an automatic "Phone view.pdf" in the data folder; the security review removed that.)"""
 import html
 import io
-import os
-import platform
-import threading
-import time
 from datetime import datetime
 
 import core
-import phone
 
-EVERY = 10 * 60  # seconds between fresh copies while the program runs
 PAGE = (360, 640)  # a phone-shaped page, in points
-_lock = threading.Lock()
-
-
-def path():
-    return os.path.join(core.DATA, phone.PDF_NAME)
 
 
 def e(x):
@@ -44,16 +34,17 @@ def candidates_part(d):
             rows.append([c['company'], core.money(c['price'], c['currency']), 'your estimate first', '', ''])
             continue
         bb = core.buy_below(c, m)
+        mine, _ = core.my_decision(c, d['journal'])
         rows.append([c['company'], core.money(c['price'], c['currency']), core.money(bb, c['currency']),
-                     f"{(c['price'] / bb - 1) * 100:+.0f}%".replace('-', '−'), core.decision(c, m)])
+                     f"{(c['price'] / bb - 1) * 100:+.0f}%".replace('-', '−'), mine or '—'])
     if not rows:
         return '<h2>Candidates</h2><p>No candidates yet.</p>'
     return (f'<h2>Candidates</h2><p class="s">Buy-below = base value minus your {m}% margin of safety. '
             '"vs" = how far the price is above (+) or below (−) it.</p>'
-            + table(['Company', 'Price', 'Buy below', 'vs', 'Decision'], rows))
+            + table(['Company', 'Price', 'Buy below', 'vs', 'Your decision'], rows))
 
 
-def scoreboard_part():
+def scoreboard_part(include_real=False):
     import portfolio as P
     state = P.load()
     if not state.get('rules') or not state.get('trades'):
@@ -65,7 +56,7 @@ def scoreboard_part():
         return out + f'<p>Prices could not be fetched when this was made ({e(ex)}).</p>'
     eur = lambda v: core.money(v, 'EUR')
     has_real = any(t['kind'] != 'index' and not P.is_paper(t) for t in state['trades'])
-    for paper in ([True, False] if has_real else [True]):
+    for paper in ([True, False] if has_real and include_real else [True]):
         s = P.score(state, mk, paper=paper)
         out += f"<h3>{'Paper picks' if paper else 'Real picks'}</h3>"
         if not s.get('money_in'):
@@ -102,12 +93,19 @@ def course_part():
 
 
 def journal_part(d, n=15):
-    entries = sorted(reversed(d['journal']), key=lambda x: x['date'], reverse=True)[:n]
+    import commit
+    wl = {w['ticker']: w for w in core.watchlist()}
+    known = {c['company'] for c in d['candidates']}
+    open_book = {c['company'] for c in d['candidates']
+                 if (wl.get(c['ticker']) or {}).get('worked_example') or commit.get(c['ticker'])}
+    entries = [x for x in d['journal'] if x.get('author') == 'You' or x['company'] not in known
+               or x['company'] in open_book]
+    entries = sorted(reversed(entries), key=lambda x: x['date'], reverse=True)[:n]
     if not entries:
         return ''
     out = f'<h2>Journal (latest {len(entries)})</h2>'
     for x in entries:
-        out += (f"<p><b>{e(x['date'])} · {e(x['company'])} · {e(x['decision'])}</b> ({e(x.get('author', ''))})<br/>"
+        out += (f"<p><b>{e(x['date'])} · {e(x['company'])} · {e(core.word(x.get('decision')))}</b> ({e(x.get('author', ''))})<br/>"
                 f"{e(x.get('why', ''))}</p>")
     return out
 
@@ -125,27 +123,26 @@ td { font-size: 8pt; border-bottom: 0.3pt solid #ececf0; padding: 2pt; }
 """
 
 
-def build_html():
+def build_html(include_real=False):
     d = core.load_dashboard()
     parts = [candidates_part(d)]
-    for fn in (scoreboard_part, course_part):
+    for fn in (lambda: scoreboard_part(include_real), course_part):
         try:
             parts.append(fn())
         except Exception as ex:
-            parts.append(f'<p>({e(fn.__name__)} could not be made: {e(ex)})</p>')
+            parts.append(f'<p>(a part could not be made: {e(ex)})</p>')
     parts.append(journal_part(d))
     made = datetime.now()
-    head = (f'<h1>Stock Screener</h1><p class="s">Read-only phone view, made {made:%a %d %b %Y, %H:%M} on '
-            f'{e(platform.node() or "your computer")}. Prices are as of then. To change anything, use the program on '
-            f'your computer. {e(core.DISCLAIMER)}</p>')
+    head = (f'<h1>Stock Screener</h1><p class="s">Summary made {made:%a %d %b %Y, %H:%M}. Each price is the latest the program had for that company. '
+            + ('' if include_real else 'Your real holdings and amounts are left out. ')
+            + f'{e(core.DISCLAIMER)}</p>')
     return f'<html><body>{head}{"".join(parts)}</body></html>'
 
 
-def write(dest=None):
-    """Make the PDF (atomically: a half-written file never replaces the last good one)."""
+def pdf_bytes(include_real=False):
+    """The PDF, in memory."""
     import pymupdf
-    dest = dest or path()
-    story = pymupdf.Story(html=build_html(), user_css=CSS)
+    story = pymupdf.Story(html=build_html(include_real), user_css=CSS)
     buf = io.BytesIO()  # made in memory: on Windows the PDF library can keep its own file open a while
     writer = pymupdf.DocumentWriter(buf)
     rect = pymupdf.Rect(0, 0, *PAGE)
@@ -157,37 +154,4 @@ def write(dest=None):
         story.draw(dev)
         writer.end_page()
     writer.close()
-    import localdata
-    tmp = f'{dest}.{os.getpid()}.tmp'
-    with open(tmp, 'wb') as fh:
-        fh.write(buf.getvalue())
-        fh.flush()
-        os.fsync(fh.fileno())
-    localdata._replace(tmp, dest)  # tries again while Google Drive or a virus scanner has the file open
-    try:  # a leftover from the first version, which could not swap its file in on Windows
-        os.remove(dest + '.tmp')
-    except OSError:
-        pass
-    return dest
-
-
-def due():
-    try:
-        return time.time() - os.path.getmtime(path()) > EVERY
-    except OSError:
-        return True
-
-
-def refresh_in_background():
-    """A fresh copy when the last is older than 10 minutes, without holding up the page."""
-    if not due() or not _lock.acquire(blocking=False):
-        return
-
-    def run():
-        try:
-            write()
-        except Exception as ex:
-            print('phone view:', ex)
-        finally:
-            _lock.release()
-    threading.Thread(target=run, daemon=True).start()
+    return buf.getvalue()

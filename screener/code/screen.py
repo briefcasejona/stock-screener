@@ -10,6 +10,7 @@ Output: output/screen_<region>.csv, one row per company with every filter's valu
 Run: python3 -I code/screen.py us
 """
 import csv
+import datetime
 import json
 import os
 import statistics
@@ -54,6 +55,20 @@ def per_year(rows):
     return out
 
 
+def base_growth(delivered, recent_revenue):
+    """The cautious growth rate the playbook starts from: the lower of delivered cash-per-share growth and the last
+    3 years' revenue growth, kept between 2% and 12%, rounded to the nearest 0.5%. The screener's price check and the
+    analysis's starting base case both use it, so the two never disagree."""
+    known = [g for g in (delivered, recent_revenue) if g is not None]
+    base = min(max(min(known) if known else 0.02, 0.02), 0.12)
+    return round(base * 200) / 200
+
+
+# notes that mean a figure may be wrong: a company with one of these never shows as passing all 10
+SERIOUS = ('differs more than 10% from a second source', 'debt is taken as zero', 'share count jumps',
+           'EPS x shares differs', 'capital spending not found', 'the larger is used')
+
+
 def growth_of_averages(values, k):
     """Compound growth between the average of the first k and the last k values."""
     n = len(values)
@@ -67,12 +82,23 @@ def screen(ticker, meta, rows, price, fx, second_source=()):
     ys = per_year(rows)[-YEARS:]
     res = {'ticker': ticker, **meta, 'years': len(ys), 'first_year': ys[0]['year'], 'last_year': ys[-1]['year']}
     flags = []
+    today = datetime.date.today()  # a year's annual report is out by May of the year after
+    if today.year - ys[-1]['year'] >= 3 or (today.year - ys[-1]['year'] == 2 and today.month >= 5):
+        flags.append(f"the latest figures are for {ys[-1]['year']}: a newer annual report is probably out (add it on the "
+                     '"Add a report" page), so the checks may be out of date')
+    if len(ys) < YEARS:
+        flags.append(f'only {len(ys)} years of figures (the checks normally look at {YEARS}), so the growth and '
+                     'consistency checks rest on a shorter record')
     # quality
     roics = [y['roic'] for y in ys if y['roic'] is not None]
     res['roic_median'] = statistics.median(roics) if len(roics) >= MIN_YEARS else None
     res['roic_min'] = min(roics) if len(roics) >= MIN_YEARS else None
     if len(roics) < len(ys):
         flags.append(f'ROIC missing for {len(ys) - len(roics)} years (negative capital or missing data)')
+    if res['roic_median'] is not None and res['roic_median'] > 1:
+        flags.append(f"ROIC median {res['roic_median']:.0%}: the invested capital is very small (often after large "
+                     'buybacks, or with negative equity), so the percentage says little; judge the business on cash '
+                     'conversion and margins instead')
     fcfs = [y['fcf'] for y in ys if y['fcf'] is not None]
     nis = [y['net_income'] for y in ys if y['fcf'] is not None and y['net_income'] is not None]
     res['fcf_to_net_income'] = sum(fcfs) / sum(nis) if len(nis) >= MIN_YEARS and sum(nis) > 0 else None
@@ -93,11 +119,19 @@ def screen(ticker, meta, rows, price, fx, second_source=()):
     res['margin_kind'] = margin_kind
     res['margin_median'] = statistics.median(gms) if len(gms) >= MIN_YEARS else None
     res['margin_min'] = min(gms) if len(gms) >= MIN_YEARS else None
-    shares = [y['diluted_shares'] for y in ys if y['diluted_shares']]
-    res['shares_change'] = cagr(shares[0], shares[-1], len(shares) - 1) if len(shares) >= MIN_YEARS else None
-    for a, b in zip(shares, shares[1:]):
+    shares = [(y['year'], y['diluted_shares']) for y in ys if y['diluted_shares']]
+    res['shares_change'] = (cagr(shares[0][1], shares[-1][1], len(shares) - 1) if len(shares) >= MIN_YEARS else None)
+    for i, ((_, a), (yb, b)) in enumerate(zip(shares, shares[1:])):
         if b / a > 1.4 or b / a < 0.7:
-            flags.append('share count jumps more than 40% in one year (merger or unadjusted split)')
+            if i <= 1 and b > a and len(shares) - i - 1 >= 3:
+                # a jump in the first years is usually the listing (the year's average counts the shares from before
+                # it only in part): measure dilution from the year after
+                rest = shares[i + 1:]
+                res['shares_change'] = cagr(rest[0][1], rest[-1][1], len(rest) - 1)
+                flags.append(f'share count jumps in {yb}, probably the stock market listing: dilution is measured '
+                             f'from {yb}')
+            else:
+                flags.append('share count jumps more than 40% in one year (merger or unadjusted split)')
             break
     # GARP
     revs = [y['revenue'] for y in ys if y['revenue']]
@@ -106,18 +140,37 @@ def screen(ticker, meta, rows, price, fx, second_source=()):
     fps = [y['fcf_ps'] for y in ys if y['fcf_ps'] is not None]
     k = 3 if len(fps) >= 7 else 2
     res['fcf_ps_growth'] = growth_of_averages(fps, k) if len(fps) >= MIN_YEARS else None
+    g, rg = res['fcf_ps_growth'], res['revenue_growth']
+    if g is not None and g > 0.25 and (rg is None or g > 2 * rg):
+        flags.append(f'cash per share grew {g:.0%} a year, far faster than revenue'
+                     + (f' ({rg:.0%})' if rg is not None else '')
+                     + ': often a weak first year (a cyclical low) or a one-off, so it overstates what the business can '
+                       'keep up; the starting growth rates and the price check cap it at 12%')
     # valuation (price converted into the reporting currency)
     res['price'], res['price_currency'] = price['price'], price['currency']
+    res['price_date'] = price.get('date', '')
     res['fx_to_report'] = fx
     p = price['price'] * fx if price and fx else None
     res['fcf0'] = sum(fps[-3:]) / 3 if len(fps) >= 3 else None
     res['net_cash_ps'] = -last['net_debt'] / last['diluted_shares'] if last['diluted_shares'] and last['net_debt'] is not None else None
     res['implied_growth'] = None
+    res['base_growth'] = (base_growth(res['fcf_ps_growth'], res['revenue_growth_3y'])
+                          if res['fcf_ps_growth'] is not None or res['revenue_growth_3y'] is not None else None)
+    res['price_why'] = ''
+    if not p:
+        res['price_why'] = 'no share price'
+    elif res['fcf0'] is None:
+        res['price_why'] = 'fewer than 3 years of free cash flow per share'
+    elif res['fcf0'] <= 0:
+        res['price_why'] = 'free cash flow over the last 3 years is not positive, and a reverse DCF needs cash coming in'
+    elif res['net_cash_ps'] is None:
+        res['price_why'] = 'no debt figure for the latest year'
     if p and res['fcf0'] and res['fcf0'] > 0 and res['net_cash_ps'] is not None:
         try:
             res['implied_growth'] = reverse_dcf(p, res['fcf0'], R_BASE, G_T_BASE, res['net_cash_ps'])
         except ValueError:
             flags.append('implied growth outside -50%..100%')
+            res['price_why'] = 'the price implies growth outside −50%..+100% a year'
     res['pe'] = p / last['eps_diluted'] if p and last['eps_diluted'] and last['eps_diluted'] > 0 else None
     res['fcf_yield'] = res['fcf0'] / p if p and res['fcf0'] is not None else None
     if last['eps_diluted'] and last['net_income'] and last['diluted_shares']:
@@ -143,13 +196,21 @@ def screen(ticker, meta, rows, price, fx, second_source=()):
         'g_revenue': (res['revenue_growth'], lambda v: v >= 0.05),
         'g_fcf_ps': (res['fcf_ps_growth'], lambda v: v >= 0.05),
         'g_still_growing': (res['revenue_growth_3y'], lambda v: v > 0),
-        'g_price': (res['implied_growth'], lambda v: res['fcf_ps_growth'] is not None and v <= res['fcf_ps_growth']),
+        # the price may assume no more than the cautious base growth (not the best years' growth)
+        'g_price': (res['implied_growth'], lambda v: res['base_growth'] is not None and v <= res['base_growth']),
     }
     for name, (v, ok) in tests.items():
         res[name] = 'n/a' if v is None else ('pass' if ok(v) else 'fail')
+    if res['implied_growth'] is not None and res['implied_growth'] < 0:
+        res['g_price'] = 'ask'  # the market expects shrinking: cheap, or something it knows; never a plain pass
     res['quality_passed'] = sum(res[n] == 'pass' for n in tests if n.startswith('q_'))
     res['garp_passed'] = sum(res[n] == 'pass' for n in tests if n.startswith('g_'))
     res['passed'] = res['quality_passed'] + res['garp_passed']
+    res['data_check'] = 'yes' if any(k in f for f in flags for k in SERIOUS) else ''
+    if res['data_check'] and res['passed'] == 10:
+        res['passed'] = 9  # all 10 only once the data has been checked
+        flags.append('passes every check, but shown as 9 of 10 until the figures marked above are checked against '
+                     'the annual report')
     res['data_flags'] = '; '.join(flags)
     return res
 

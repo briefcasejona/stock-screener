@@ -77,6 +77,7 @@ STOCK = {'EquityAttributableToOwnersOfParent', 'Equity', 'NoncontrollingInterest
 def ensure_company(ticker, name=None, yahoo=None):
     """The company must be in a universe; one outside the S&P 500 and STOXX 600 is added to the European list."""
     import csv
+    check_ticker(ticker)
     if any(r['ticker'] == ticker for r in localdata.eu_universe()) or \
             any(r['ticker'] == ticker for r in csv.DictReader(open(f'{BASE}/raw/universe_us.csv', encoding='utf-8', errors='replace'))):
         return
@@ -85,7 +86,20 @@ def ensure_company(ticker, name=None, yahoo=None):
     localdata.add_company({'ticker': ticker, 'name': name, 'yahoo': yahoo, 'source': 'user'})
 
 
+TICKER = re.compile(r'[A-Z0-9][A-Z0-9.\-]{0,19}')
+
+
+def check_ticker(ticker):
+    """A ticker becomes part of file names: letters, digits, dots and dashes only (no folders)."""
+    if not TICKER.fullmatch(ticker or ''):
+        raise SystemExit(f'"{ticker}" is not a ticker: use letters, digits, "." and "-" only (at most 20)')
+    return ticker
+
+
 def save(ticker, period_end, kind, source_file, facts, extra=None):
+    check_ticker(ticker)
+    if not re.fullmatch(r'\d{4}-\d{2}-\d{2}', period_end or ''):
+        raise SystemExit(f'"{period_end}" is not a date')
     os.makedirs(f'{OUT}/{ticker}', exist_ok=True)
     path = f'{OUT}/{ticker}/{period_end}__{kind}.json'
     doc = {'ticker': ticker, 'period_end': period_end, 'kind': kind, 'source_file': source_file,
@@ -239,8 +253,12 @@ def cmd_pdf_text(args):
 
 def safe_pattern(pattern):
     """A search pattern that can't freeze the program: a repeat inside a repeat, like (a+)+, can take ages on one line."""
-    if re.search(r'[+*}]\)*[+*{]|\([^()]*[+*}][^()]*\)[+*{]', pattern):
-        raise ValueError('this search repeats a repeat (like (a+)+), which can freeze the program: simplify it')
+    if re.search(r'[+*}]\)*[+*{]|\)\s*[+*{]', pattern):
+        # a repeat of a repeat, like (a+)+, or any repeated group, like (\w|\w\w)*: either can take ages on one line
+        raise ValueError('this search repeats a group (like (a+)+ or (x|y)*), which can freeze the program: '
+                         'search for plain words instead')
+    if len(pattern) > 200:
+        raise ValueError('this search is too long: use a few words from the line')
     return re.compile(pattern, re.I)
 
 

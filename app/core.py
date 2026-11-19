@@ -28,6 +28,7 @@ ADDED = os.path.join(DATA, 'added_companies.csv')
 SETTINGS = os.path.join(DATA, 'settings.json')
 BACKUPS = os.path.join(DATA, 'backups')
 KEEP_BACKUPS = 20
+KEEP_BACKUPS_SYNCED = 5  # in a Google Drive (or similar) folder: fewer copies of everything in the cloud
 MARGINS = (10, 20, 30)  # 5% was dropped (council, 10 Nov 2026): too thin to protect against hopeful growth rates
 DEFAULT_MARGIN = 20  # the owner's choice (19 Nov 2026 plan)
 CHECK_DAYS = 30  # the companies you follow are checked once a month (19 Oct 2026 plan; it was weekly)
@@ -280,7 +281,8 @@ def money(v, cur):
 def md(text):
     """Text for st.markdown / st.write / captions: a "$" would start a maths formula there ("$350 ... $400" turned into
     green code with the dollar signs gone), so it is escaped."""
-    return str(text).replace('$', '\\$')
+    # "![...](link)" would load a picture from the internet when the page shows: written as text instead
+    return str(text).replace('$', '\\$').replace('![', '!\\[')
 
 
 def data_notes(text):
@@ -523,7 +525,8 @@ def save_backup(why='automatic'):
         fh.write(data)
     os.replace(tmp, path)
     old = sorted(f for f in os.listdir(BACKUPS) if f.startswith('backup ') and f.endswith('.zip'))
-    for f in old[:-KEEP_BACKUPS]:
+    import datafolder as _df
+    for f in old[:-(KEEP_BACKUPS if DATA == _df.DEFAULT else KEEP_BACKUPS_SYNCED)]:
         os.remove(os.path.join(BACKUPS, f))
     return path
 

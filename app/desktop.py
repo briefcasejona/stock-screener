@@ -111,6 +111,11 @@ def setup_env():
 
 def log_to_file():
     """The app has no text window: what it would print goes to program.log."""
+    try:  # kept small: one older copy, then it starts again
+        if os.path.getsize(LOG) > 5 * 2**20:
+            os.replace(LOG, LOG + '.old')
+    except OSError:
+        pass
     fh = open(LOG, 'a', encoding='utf-8', buffering=1)
     sys.stdout = sys.stderr = fh
 
@@ -310,9 +315,9 @@ def update_waiting():
 
 def launch():
     running = running_port()
-    # already running: another window on it. While a window is open a newer version can't be installed: when one is
-    # waiting, stop it and start again, which offers the update first.
-    if running and not (update_waiting() and stop_running()):
+    # already running: another window on it. A waiting update is offered at the next fresh start, never by stopping
+    # the program you are using (that could lose what you were typing).
+    if running:
         open_window('http://{}:{}'.format(*running))
         return 0
     sys.path.insert(0, APP)
@@ -350,7 +355,8 @@ def launch():
 
 
 def selftest():
-    """For the build machines: start the program, check it answers and every page loads, run a script, stop."""
+    """For the build machines: start the program, check it answers, run a script, stop. (Every page is opened in a real
+    browser by build/ui_check.py.)"""
     port = free_port(8601)
     server = subprocess.Popen(worker_cmd('--serve', str(port)), **hidden())
     try:
@@ -392,7 +398,9 @@ def main():
         return selftest()
     if args[:1] == ['--update-only']:
         import updater
-        return 0 if updater.update_if_available(version(), BASE, relaunch=False, wait=True, window=False) else 1
+        # you typed this command yourself: it installs without asking again
+        return 0 if updater.update_if_available(version(), BASE, relaunch=False, wait=True, window=False,
+                                                 asked=True) else 1
     if FROZEN or sys.stdout is None:
         log_to_file()
     print(f'--- {time.strftime("%Y-%m-%d %H:%M:%S")} {NAME} {version()} starting')

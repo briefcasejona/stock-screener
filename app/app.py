@@ -23,6 +23,14 @@ PAGES = {
     'guide': st.Page(guide.render, title='How to use it', icon=':material/school:', url_path='guide'),
 }
 st.session_state['pages'] = PAGES
+
+# Only this program's own window may drive it: Streamlit trusts any page on this computer ("localhost" on any port),
+# so a page served by another program on this computer is stopped here.
+_origin = (st.context.headers or {}).get('Origin') or ''
+_port = st.get_option('server.port')
+if _origin and _origin not in (f'http://127.0.0.1:{_port}', f'http://localhost:{_port}'):
+    st.error('This program only answers its own window.')
+    st.stop()
 page = st.navigation(list(PAGES.values()), position='top')
 
 # The first start counts as a check (the data in the download is fresh, and a company you add is analysed there and

@@ -69,6 +69,12 @@ jobs:
       - name: Install the program's packages (exact versions, checked by fingerprint)
         run: python -m pip install --require-hashes --only-binary ":all:" -r app/requirements.lock -r build/requirements-build.lock
 
+      - name: Unit tests (the sums, the imports, backups, what the pages say)
+        shell: bash
+        env:
+          STOCK_NO_FIRST_DOWNLOAD: '1'
+        run: python -m unittest discover -s tests -v
+
       - name: Build the program
         shell: bash
         run: |
@@ -85,7 +91,7 @@ jobs:
             echo "worker=dist/Stock Screener.app/Contents/MacOS/stockscreener-worker" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Self-test (start, every page answers, run a script)
+      - name: Self-test (start, the program answers, run a script)
         shell: bash
         env:
           STOCK_APP_BASE: ${{ runner.temp }}/base
@@ -215,4 +221,4 @@ jobs:
           cat SHA256SUMS.txt
           gh release create "v$VERSION" StockScreener-Setup.exe StockScreener-mac.dmg SHA256SUMS.txt \
             --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Stock Screener $VERSION" \
-            --notes "Windows: download StockScreener-Setup.exe. Mac (Apple chip): download StockScreener-mac.dmg. An app that is already installed updates itself the next time it starts. Educational, not personal financial advice."
+            --notes "Windows: download StockScreener-Setup.exe. Mac (Apple chip): download StockScreener-mac.dmg. An app that is already installed offers this update the next time it starts, with these notes, and installs it only when you say so. Educational, not personal financial advice."

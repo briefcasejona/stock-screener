@@ -84,7 +84,8 @@ def add_events(s, events, broker, source):
         if e.get('isin') and e['isin'] not in s['securities']:
             s['securities'][e['isin']] = {'name': e.get('name') or e['isin'], 'symbol': e.get('symbol'),
                                           'kind': None, 'sector': None, 'country': None}
-    s['imports'].append({'broker': broker, 'file': source, 'at': date.today().isoformat(), 'new': new})
+    # the file's name is not kept: broker downloads are often named after your account number
+    s['imports'].append({'broker': broker, 'at': date.today().isoformat(), 'new': new})
     s['events'].sort(key=lambda e: (e['date'], e.get('ref', '')))
     return new
 

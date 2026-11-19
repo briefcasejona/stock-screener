@@ -103,7 +103,11 @@ def company_picker(key, everyone=False):
     if not (name and yahoo and ticker):
         st.caption('Fill in all three.')
         return None
-    return ticker.strip().upper(), name.strip(), yahoo.strip().upper()
+    ticker = ticker.strip().upper().replace(' ', '')
+    if not re.fullmatch(r'[A-Z0-9][A-Z0-9.\-]{0,19}', ticker):
+        st.error('A ticker uses letters, digits, "." and "-" only (at most 20), for example SAP or NOVO-B.')
+        return None
+    return ticker, name.strip(), yahoo.strip().upper()
 
 
 def keep_upload(up):
@@ -333,7 +337,10 @@ def pdf_tab():
 def us_tab():
     st.write('A company listed in the US that is not in the S&P 500 (D-Wave Quantum, for example). No files needed: '
              'the SEC has every annual report (10-K) and quarterly report (10-Q) in a form the program reads exactly.')
-    tk = st.text_input('Ticker', key='us_ticker', placeholder='e.g. QBTS').strip().upper()
+    tk = st.text_input('Ticker', key='us_ticker', placeholder='e.g. QBTS').strip().upper().replace('.', '-')
+    if tk and not re.fullmatch(r'[A-Z0-9][A-Z0-9\-]{0,9}', tk):
+        st.error('A US ticker uses letters, digits and "-" only, for example BRK-B.')
+        return
     if tk and st.button('Add it', type='primary', key='us_add'):
         with st.spinner(f'Looking up {tk} at the SEC...'):
             code, out = core.user_report_cmd('add-us', tk)

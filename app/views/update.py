@@ -74,8 +74,10 @@ def show_check(out):
 def render():
     st.title('Update data')
     st.caption('Everything is downloaded from free sources: SEC and ESEF filings for company figures, Yahoo Finance '
-               'for prices and exchange rates. You need an internet connection; nothing is sent anywhere except '
-               'these requests.')
+               'for prices and exchange rates. What leaves this computer: your email address to the SEC only; the '
+               'symbols the program asks prices for to Yahoo (on the Portfolio page these are your own holdings, so '
+               'Yahoo can see what you hold); and, at each start, a question to GitHub whether a new version exists. '
+               'If your data folder is in Google Drive or similar, your data is stored there too.')
     job_progress()
     contact = core.settings().get('sec_contact', '')
     with st.expander('Your email address for the SEC' + ('' if contact else ': needed before the first download'),
@@ -139,7 +141,8 @@ def render():
     st.write(f'Your journal, the companies you follow, their analyses and the reports you added are kept in their own '
              f'folder, apart from the program, so a newer version of the program never touches them: '
              f'**{core.DATA}**. The program makes a backup there by itself every day you use it (the last '
-             f'{core.KEEP_BACKUPS} are kept, in the "backups" folder). Now and then, also keep a copy somewhere off '
+             f'{core.KEEP_BACKUPS} are kept, {core.KEEP_BACKUPS_SYNCED} when the folder is in Google Drive or similar, '
+             f'in the "backups" folder). Now and then, also keep a copy somewhere off '
              'this laptop, like a USB stick.')
     st.download_button('Download a backup', core.backup_bytes(), file_name=f'stock-screener-backup-{date.today()}.zip',
                        mime='application/zip', icon=':material/download:')

@@ -1,5 +1,8 @@
-"""Updates for the installed app: when it starts, it asks GitHub for the newest release, and when that is newer than
-itself it downloads it, checks the download against the release's fingerprints (SHA256SUMS.txt) and installs it.
+"""Updates for the installed app: when it starts, it asks GitHub for the newest release. When that is newer than
+itself, it ASKS you first, showing what changed: Install now, Not now (asked again in a week), or Skip this version.
+Only after "Install now" does it download the release, check it against the release's fingerprints (SHA256SUMS.txt)
+and install it. Without a screen to ask on, it never installs. The last two downloaded installers are kept in the
+"update" folder, so an older version can be put back by hand.
 
 Windows: the installer runs silently and opens the app again when it is done (the launcher exits first, so its
 files are free). Mac: the new "Stock Screener.app" replaces this one in place and is opened again.
@@ -16,11 +19,43 @@ import sys
 import tempfile
 import threading
 import urllib.request
+from datetime import date, timedelta
 
 REPO = 'briefcasejona/stock-screener'
 API = os.environ.get('STOCK_UPDATE_API', f'https://api.github.com/repos/{REPO}/releases/latest')
 UA = 'stock-screener-updater'
 ASSET = {'nt': 'StockScreener-Setup.exe', 'darwin': 'StockScreener-mac.dmg'}
+CHOICES = os.path.join(os.path.expanduser('~'), '.stockscreener-update.json')  # "skip" / "not now", per computer
+LATER_DAYS = 7
+KEEP_INSTALLERS = 2
+
+
+def choices():
+    try:
+        return json.load(open(CHOICES, encoding='utf-8'))
+    except (OSError, ValueError):
+        return {}
+
+
+def remember(**kw):
+    try:
+        with open(CHOICES, 'w', encoding='utf-8') as fh:
+            json.dump(choices() | kw, fh)
+    except OSError:
+        pass
+
+
+def wanted(version):
+    """False when you skipped this version, said "Not now" less than a week ago, or its install failed this week."""
+    c = choices()
+    today = date.today().isoformat()
+    if c.get('skip') == version:
+        return False
+    if c.get('later', {}).get(version, '') > today:
+        return False
+    if c.get('failed', {}).get(version, '') > today:
+        return False
+    return True
 
 
 def parse(v):
@@ -63,13 +98,13 @@ def newer(current, timeout=5):
     if not re.fullmatch(r'[0-9a-f]{64}', sha):
         return None
     return {'version': version, 'url': assets[name]['browser_download_url'], 'sha256': sha,
-            'size': assets[name].get('size') or 0}
+            'size': assets[name].get('size') or 0, 'notes': (rel.get('body') or '').strip()}
 
 
 def download(info, folder, progress=lambda done, total: None):
     """Download the release into `folder` and check its fingerprint; returns the file's path."""
     os.makedirs(folder, exist_ok=True)
-    path = os.path.join(folder, asset_name())
+    path = os.path.join(folder, f"{info['version']}-{asset_name()}")
     h = hashlib.sha256()
     done = 0
     with get(info['url'], 60) as r, open(path + '.part', 'wb') as fh:
@@ -85,7 +120,51 @@ def download(info, folder, progress=lambda done, total: None):
         os.remove(path + '.part')
         raise ValueError('the download does not match the release\'s fingerprint')
     os.replace(path + '.part', path)
+    # keep this one and the one before it; older installers are removed
+    old = sorted((f for f in os.listdir(folder) if f.endswith(asset_name()) and f != os.path.basename(path)),
+                 key=lambda f: parse(f.split('-')[0]), reverse=True)
+    for f in old[KEEP_INSTALLERS - 1:]:
+        try:
+            os.remove(os.path.join(folder, f))
+        except OSError:
+            pass
     return path
+
+
+def ask(current, info):
+    """Show what changed and ask: 'install', 'later' or 'skip'. Without a screen: 'later' (never installs unasked)."""
+    try:
+        import tkinter
+        from tkinter import scrolledtext
+        root = tkinter.Tk()
+    except Exception:
+        return 'later'
+    answer = {'v': 'later'}
+    root.title('Stock Screener: a new version')
+    root.resizable(False, False)
+    root.attributes('-topmost', True)
+    tkinter.Label(root, text=f"Version {info['version']} is available (you have {current}). Install it now?",
+                  padx=16, pady=12, anchor='w', justify='left').pack(fill='x')
+    notes = scrolledtext.ScrolledText(root, width=70, height=14, wrap='word', padx=8, pady=6)
+    notes.insert('1.0', info.get('notes') or 'No notes came with this version.')
+    notes.configure(state='disabled')
+    notes.pack(padx=16)
+    tkinter.Label(root, text='Your journal, candidates and portfolio are kept as they are. The last installers are kept '
+                             'in the "update" folder of the program.', padx=16, pady=8, anchor='w', justify='left',
+                  wraplength=520).pack(fill='x')
+    row = tkinter.Frame(root, padx=16, pady=12)
+    row.pack(fill='x')
+
+    def pick(v):
+        answer['v'] = v
+        root.destroy()
+    tkinter.Button(row, text='Install now', default='active', command=lambda: pick('install')).pack(side='right')
+    tkinter.Button(row, text=f'Not now (ask again in {LATER_DAYS} days)', command=lambda: pick('later')).pack(
+        side='right', padx=8)
+    tkinter.Button(row, text='Skip this version', command=lambda: pick('skip')).pack(side='left')
+    root.protocol('WM_DELETE_WINDOW', lambda: pick('later'))
+    root.mainloop()
+    return answer['v']
 
 
 def mac_app_path():
@@ -177,15 +256,26 @@ def run_with_window(title, work):
     return result.get('value')
 
 
-def update_if_available(current, base, log=print, relaunch=True, wait=False, window=True, before_install=None):
+def update_if_available(current, base, log=print, relaunch=True, wait=False, window=True, before_install=None,
+                        asked=False):
     """The whole update at start-up. Returns True when a newer version is being installed (the caller exits so
-    the new version can take over), False when the current version should simply start."""
+    the new version can take over), False when the current version should simply start. `asked`: you already asked
+    for it yourself (the --update-only command), so there is no question first."""
     try:
         info = newer(current)
     except Exception as e:
         log(f'update check skipped: {e}')
         return False
-    if not info:
+    if not info or (not asked and not wanted(info['version'])):
+        return False
+    choice = 'install' if asked else ask(current, info) if window else 'later'
+    if choice == 'skip':
+        remember(skip=info['version'])
+        log(f'version {info["version"]} skipped')
+        return False
+    if choice != 'install':
+        remember(later={info['version']: (date.today() + timedelta(days=LATER_DAYS)).isoformat()})
+        log(f'update to {info["version"]} not now')
         return False
     log(f'updating from {current} to {info["version"]}')
     if before_install:  # e.g. stop the program that was already starting
@@ -204,8 +294,11 @@ def update_if_available(current, base, log=print, relaunch=True, wait=False, win
         p = run_with_window('Updating Stock Screener', work) if window else work(lambda t: None)
     except Exception as e:
         log(f'update failed, starting the current version: {e}')
+        # not tried again on every start (a Mac that can't replace the app would loop); asked again in a week
+        remember(failed={info['version']: (date.today() + timedelta(days=LATER_DAYS)).isoformat()})
         return False
     if wait and p is not None and p.returncode:
         log(f'the installer stopped with exit code {p.returncode}')
+        remember(failed={info['version']: (date.today() + timedelta(days=LATER_DAYS)).isoformat()})
         return False
     return True

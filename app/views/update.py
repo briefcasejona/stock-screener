@@ -1,4 +1,4 @@
-"""Update data: the weekly check, fresh prices, a full refresh, and backing up your own work."""
+"""Update data: the monthly check, fresh prices, a full refresh, and backing up your own work."""
 import os
 import re
 import zipfile
@@ -47,22 +47,27 @@ def job_progress():
 def show_check(out):
     if not out:
         return
-    st.caption(f"Last weekly check: {out['at']}, {len(out['checked'])} companies followed.")
+    st.caption(f"Last monthly check: {out['at']}, {len(out['checked'])} companies followed.")
     for e in out['events']:
         if e['event'] == 'annual report':
-            st.success(f"{e['company']}: new annual report (year to {e['year_to']}). The analysis was re-run: base value "
-                       f"{core.money(e['base_now'], e['currency'])}, {e['checks_passed']} of 10 checks pass.")
+            st.success(core.md(f"{e['company']}: new annual report (year to {e['year_to']}). The analysis was re-run: base value "
+                       f"{core.money(e['base_now'], e['currency'])}, {e['checks_passed']} of 10 checks pass."))
         elif e['event'] == 'interim report':
             st.info(f"{e['company']}: new {e['report']['form']} for the period to {e['report']['period_end']}. "
                     'The analysis uses yearly figures, so read it for news; nothing was re-run.')
         else:
             into = e['into_buy_zone_at_margins']
-            st.warning(f"{e['company']}: the price ({core.money(e['price'], e['currency'])}) moved "
-                       + ('to or below' if into else 'back above') + ' the buy-below price at a '
-                       + ', '.join(f'{m}%' for m in sorted(into or e['out_of_buy_zone_at_margins'])) + ' margin of safety.')
+            st.warning(core.md(f"{e['company']}: the price ({core.money(e['price'], e['currency'])}) moved "
+                       + ('to or below' if into else 'back above') + ' your buy-below price ('
+                       + ', '.join(f'{m}%' for m in sorted(into or e['out_of_buy_zone_at_margins'])) + ' margin of safety).'))
     for p in out['problems']:
-        st.error(f"{p['ticker']}: {p['problem']}")
-    if not out['events'] and not out['problems']:
+        st.error(core.md(f"{p['ticker']}: {p['problem']}"))
+    zone = out.get('in_buy_zone', [])
+    if zone:
+        st.info(core.md('At or below your buy-below price now: ' + ', '.join(
+            f"{z['company']} ({core.money(z['price'], z['currency'])}, buy-below {core.money(z['buy_below'], z['currency'])})"
+            for z in zone) + '. Whether to buy is your decision, after reading the latest annual report.'))
+    if not out['events'] and not out['problems'] and not zone:
         st.caption('Nothing new.')
 
 
@@ -77,8 +82,13 @@ def render():
                      expanded=not contact, icon=':material/mail:'):
         st.write('The SEC, where the US company figures come from, asks every program to send a contact email address '
                  'with its downloads. It is sent only to the SEC and kept on this laptop.')
-        new = st.text_input('Email address', value=contact, placeholder='you@example.com').strip()
-        if st.button('Save the address', disabled=new == contact):
+        with st.form('sec_email', enter_to_submit=True, border=False):
+            new = st.text_input('Email address', value=contact, placeholder='you@example.com')
+            saved = st.form_submit_button('Save the address')
+        new = (new or '').strip()
+        if saved and new == contact:
+            st.info('That address is already saved.')
+        elif saved:
             if re.fullmatch(r'[^@\s]+@[^@\s]+\.[^@\s]+', new):
                 core.save_setting(sec_contact=new)
                 st.success('Saved.')
@@ -86,15 +96,15 @@ def render():
                 st.error('That doesn\'t look like an email address.')
     st.divider()
 
-    st.subheader('Weekly check')
+    st.subheader('Monthly check')
     st.write('For every company you follow: fresh figures and price, the analysis re-run when a new annual report is '
-             'out, and a journal note when the price crosses a buy-below price. It runs by itself when you open the '
-             'program and a week has passed.')
+             'out, and a journal note when the price crosses your buy-below price. It runs when you open the program '
+             f'and a month has passed (next: {core.next_check_date():%d %b %Y}); you see it run at the top of the page.')
     if not core.data_ready():
         st.caption(core.NOT_READY)
-    if st.button('Run the weekly check now', type='primary', disabled=not core.data_ready()):
+    if st.button('Run the monthly check now', type='primary', disabled=not core.data_ready()):
         with st.spinner('Checking the companies you follow...'):
-            out, err = core.run_weekly_check()
+            out, err = core.run_check()
         data.changed()
         if err:
             st.error(err)
@@ -102,8 +112,10 @@ def render():
 
     st.divider()
     st.subheader('Prices for the whole screener')
-    st.write('Today\'s prices and exchange rates for all ~700 companies, then the 10 checks again (the "reasonable '
-             'price" check depends on the price). Takes 5–10 minutes. Your candidates get new prices in the weekly check.')
+    n = len(core.load_screen())
+    st.write(f'Today\'s prices and exchange rates for all {n or "the"} companies in the screener, then the 10 checks '
+             'again (the "reasonable price" check depends on the price). Takes 5–10 minutes. Your candidates show the '
+             'same new prices.')
     busy = jobs.running() is not None
     if st.button('Refresh prices', disabled=busy):
         jobs.start('prices')
@@ -149,7 +161,7 @@ def render():
     st.divider()
     data_folder_part()
     st.divider()
-    phone_part()
+    summary_part()
 
 
 def data_folder_part():
@@ -199,69 +211,20 @@ def data_folder_part():
                        'where it is; copy it back with a backup (above) if you need it.')
 
 
-def phone_part():
-    import phone
+def summary_part():
     import phone_view
-    from streamlit import config
-    st.subheader('On your phone')
-    st.write('Two private ways, nothing is put on the internet: the **full program** over Tailscale (a free private '
-             'network of only your own devices) while this computer is on, and a **read-only phone view** (a PDF) in '
-             'your data folder that you can open in the Google Drive app, also when the computer is off.')
-
-    st.markdown('**The full program on your phone**')
-    ip = phone.address()
-    listening = config.get_option('server.address')
-    if ip and listening == ip:
-        full, plain = phone.phone_link()
-        st.success(f'Your phone can open the program now. In Safari on your phone (with Tailscale on), go to '
-                   f'**{full}**' + (f' (or **{plain}**)' if plain != full else '') + '.', icon=':material/smartphone:')
-    elif phone.enabled() and not ip:
-        st.warning('Phone use is on, but Tailscale is not running or not signed in on this computer. Start Tailscale, '
-                   'then quit the program and start it again.', icon=':material/wifi_off:')
-    elif phone.enabled():
-        st.info('Phone use is on. Quit the program (button on the left) and start it again to open it to your phone.')
-    on = st.toggle('Let my phone open the program (over Tailscale only)', value=phone.enabled(),
-                   help='Kept per computer. Takes effect when you start the program again.')
-    if on != phone.enabled():
-        phone.set_enabled(on)
-        st.rerun()
-    with st.expander('How to set it up, step by step'):
-        st.markdown(
-            '1. On this computer, install **Tailscale** (tailscale.com/download) and sign in. Use an account only you '
-            'use: every device signed in to it can open the program.\n'
-            '2. On your iPhone, install the **Tailscale** app from the App Store and sign in with the **same** account. '
-            'Allow it to add a VPN configuration when iOS asks.\n'
-            '3. Turn on the switch above, then quit the program (button on the left) and start it again.\n'
-            '4. If Windows asks whether to allow the program on networks, tick **both** boxes (private and public) and '
-            'allow it. Tailscale\'s network can count as "public" on Windows. The program listens only on its '
-            'Tailscale address, so your Wi-Fi and the internet still can\'t reach it.\n'
-            '5. On your iPhone: switch Tailscale on, open Safari, go to the address shown above, then Share → '
-            '**Add to Home Screen**, so it opens like an app.\n\n'
-            'The computer must be **on and awake** with the program running. With phone use on, closing the window '
-            'here does not stop the program; use **Quit** on the left. To use it while you are away, set this '
-            'computer not to sleep (Windows: Settings → System → Power → Sleep: Never, when plugged in).')
-
-    st.markdown('**The read-only phone view**')
-    pdf = phone_view.path()
-    try:
-        from datetime import datetime
-        made = datetime.fromtimestamp(os.path.getmtime(pdf))
-        st.write(f'**{phone.PDF_NAME}** in your data folder, last made {made:%d %b %Y, %H:%M}. A fresh copy is made '
-                 'every 10 minutes while the program runs. It shows your candidates, the scoreboard, your No and Wait '
-                 'decisions, course progress and the latest journal entries, with prices as of when it was made.')
-    except OSError:
-        st.write(f'**{phone.PDF_NAME}** is made in your data folder every 10 minutes while the program runs.')
-    import datafolder
-    if core.DATA == datafolder.DEFAULT:
-        st.caption('Your data folder is on this computer only, so your phone can\'t see the PDF yet. Move your data to '
-                   'Google Drive (above) to read it in the Google Drive app.')
-    else:
-        st.caption(f'On your phone: Google Drive app → the "{datafolder.NAME}" folder → {phone.PDF_NAME}. Tip: star it '
-                   '(⋯ → Add to Starred) to find it quickly.')
-    if st.button('Make the phone view now', icon=':material/picture_as_pdf:'):
-        with st.spinner('Making the phone view (it fetches today\'s prices)...'):
+    st.subheader('A summary to read elsewhere')
+    st.write('A PDF of your candidates, scoreboard, course progress and latest journal entries, as of now. It is made '
+             'only when you press the button and saved only where you choose. Your real holdings and amounts are left '
+             'out unless you tick the box.')
+    real = st.checkbox('Include my real holdings and amounts')
+    if st.button('Make the summary', icon=':material/picture_as_pdf:'):
+        with st.spinner('Making the summary (it fetches today\'s prices)...'):
             try:
-                phone_view.write()
-                st.success('Done.')
+                st.session_state['summary_pdf'] = phone_view.pdf_bytes(include_real=real)
             except Exception as e:
                 st.error(f'Could not make it: {e}')
+    if st.session_state.get('summary_pdf'):
+        st.download_button('Download the summary', st.session_state['summary_pdf'],
+                           file_name=f'stock-screener-summary-{date.today()}.pdf', mime='application/pdf',
+                           icon=':material/download:')

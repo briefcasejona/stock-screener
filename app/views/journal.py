@@ -2,6 +2,7 @@
 import pandas as pd
 import streamlit as st
 
+import commit
 import core
 from views import data
 from views.candidates import journal_form, newest_first
@@ -11,7 +12,7 @@ def render():
     d = data.dashboard()
     entries = newest_first(d['journal'])
     st.title('Journal')
-    st.caption('Why you bought, waited or passed, written at the time. Reading it back later is how you learn which '
+    st.caption('Why you bought, waited or said no, written at the time. Reading it back later is how you learn which '
                'of your judgements held up. Entries are never edited: write a new one when you change your mind. '
                + core.DISCLAIMER)
     who = st.segmented_control('Written by', ['Everyone', 'You', 'The program'], default='Everyone', required=True)
@@ -19,11 +20,17 @@ def render():
         entries = [e for e in entries if e.get('author') == 'You']
     elif who == 'The program':
         entries = [e for e in entries if e.get('author') != 'You']
+    # before your own estimate of a company, the program's notes on it would give its valuation away
+    wl = {w['ticker']: w for w in core.watchlist()}
+    open_book = {c['company'] for c in d['candidates']
+                 if (wl.get(c['ticker']) or {}).get('worked_example') or commit.get(c['ticker'])}
+    known = {c['company'] for c in d['candidates']}
+    hidden = lambda e: e.get('author') != 'You' and e['company'] in known and e['company'] not in open_book
     if entries:
         st.dataframe(pd.DataFrame([{
-            'Date': e['date'], 'Company': e['company'], 'Decision': e['decision'],
-            'Price': core.money(e['price'], e['currency']), 'Base value': core.money(e.get('base'), e['currency']),
-            'Growth the price assumed': core.pct(e.get('implied_growth')), 'Why': e['why'],
+            'Date': e['date'], 'Company': e['company'], 'Decision': core.word(e.get('decision')),
+            'Price': '' if e.get('price') is None else core.money(e['price'], e['currency']),
+            'Why': 'shown once you have locked in your own estimate' if hidden(e) else e['why'],
             'What would change my mind': e.get('change_mind', ''), 'Next check': e.get('next_check', ''),
             'By': e.get('author', '')} for e in entries]), hide_index=True,
             column_config={'Company': st.column_config.TextColumn('Company', pinned=True),

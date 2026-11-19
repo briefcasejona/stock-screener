@@ -1,6 +1,6 @@
 """The Stock Screener, as a program on your laptop. The installed app starts it through desktop.py."""
 import os
-from datetime import date, timedelta
+from datetime import date
 
 import streamlit as st
 
@@ -25,20 +25,16 @@ PAGES = {
 st.session_state['pages'] = PAGES
 page = st.navigation(list(PAGES.values()), position='top')
 
+# The first start counts as a check (the data in the download is fresh, and a company you add is analysed there and
+# then).
+if 'last_check' not in core.settings():
+    core.save_setting(last_check=date.today().isoformat())
+
 with st.sidebar:
-    st.markdown('### Margin of safety')
-    m = st.segmented_control('Margin of safety', core.MARGINS, default=core.margin(), format_func=lambda v: f'{v}%',
-                             key='margin_pick', label_visibility='collapsed', required=True)
-    if m != core.margin():
-        core.save_setting(margin=m)
-    st.caption('Buy-below = base value minus this margin. A bigger margin protects you more when your growth '
-               'rates turn out too hopeful.')
-    st.divider()
-    s = core.settings()
-    st.markdown('### Weekly check')
-    nxt = date.fromisoformat(s['last_check']) + timedelta(days=7) if s.get('last_check') else date.today()
+    # the margin of safety is set on the Candidates page, next to the prices it changes
+    st.markdown('### Monthly check')
     st.caption(f"Keeps the companies you follow up to date. Next: when you open the program on or after "
-               f"{nxt:%d %b %Y}. You can also run it on the Update data page.")
+               f"{core.next_check_date():%d %b %Y}. You can also run it on the Update data page.")
     st.divider()
     if st.button('Quit the program', icon=':material/power_settings_new:'):
         import signal
@@ -83,11 +79,6 @@ def one_computer_at_a_time():
                    'used on two computers at once, changes from one can overwrite the other.', icon=':material/devices:')
     else:
         datafolder.mark_in_use(core.DATA)
-    try:  # the read-only phone view in the data folder, a fresh copy every 10 minutes
-        import phone_view
-        phone_view.refresh_in_background()
-    except Exception as e:
-        print('phone view:', e)
 
 
 one_computer_at_a_time()
@@ -103,6 +94,7 @@ if not st.session_state.get('started'):
     elif core.settings().get('program_version') != version and os.listdir(core.USER_REPORTS):
         jobs.start('after_restore')
     core.save_setting(program_version=version)
+    core.migrate()  # one-time fixes to data saved by older versions
     try:  # claims whose target year's figures have come in are checked now
         import claims
         if claims.check_all():
@@ -110,24 +102,21 @@ if not st.session_state.get('started'):
     except Exception as e:
         print('checking claims:', e)
 
-# The first start counts as a weekly check (the data in the download is fresh, and a company you add is analysed
-# there and then).
-if 'last_check' not in core.settings():
-    core.save_setting(last_check=date.today().isoformat())
 if not core.data_ready():
     first_download_banner()
-# the weekly check: once per session, when a week has passed and something is being followed
-if (not st.session_state.get('checked') and core.data_ready() and core.weekly_check_due()
-        and any(e['mode'] == 'watch' for e in core.watchlist())):
+# the monthly check: once per session, when a month has passed and something is being followed
+if (not st.session_state.get('checked') and core.data_ready() and core.check_due()
+        and any(e['mode'] == 'watch' and not e.get('hidden') for e in core.watchlist())):
     st.session_state['checked'] = True
-    with st.status('Weekly check: updating the companies you follow...', expanded=False) as box:
-        out, err = core.run_weekly_check()
+    with st.status('Monthly check: updating the companies you follow...', expanded=True) as box:
+        out, err = core.run_check()
         if err:
-            box.update(label=f'Weekly check could not finish: {err}. It will try again next time.', state='error')
+            box.update(label=f'Monthly check could not finish: {err}. It will try again next time.', state='error')
         else:
             n = len(out['events'])
-            box.update(label=f"Weekly check done: {len(out['checked'])} companies checked, "
+            box.update(label=f"Monthly check done: {len(out['checked'])} companies checked, "
                              f"{n} change{'s' if n != 1 else ''} noted in the journal.", state='complete')
+            core.show_check_result(out, box)
             st.cache_data.clear()
 
 page.run()

@@ -25,9 +25,10 @@ M = 1e6
 # Playbook step 3: discount rate and long-term growth per scenario, plus the growth for years 1-10.
 # The growth rates are this example's judgement, explained in the playbook text.
 SCENARIOS = {
-    'bear': {'g': 0.06, 'r': 0.10, 'g_t': 0.02},
+    # one discount rate (9%) and long-term growth (2.5%) in every scenario: only the growth differs
+    'bear': {'g': 0.06, 'r': 0.09, 'g_t': 0.025},
     'base': {'g': 0.12, 'r': 0.09, 'g_t': 0.025},
-    'bull': {'g': 0.19, 'r': 0.08, 'g_t': 0.03},  # revenue growth 2016-2025 (18.9%) continues
+    'bull': {'g': 0.19, 'r': 0.09, 'g_t': 0.025},  # revenue growth 2016-2025 (18.9%) continues
 }
 
 

@@ -156,12 +156,12 @@ def watch_windows(grace=20, first=180):
 
 
 def serve(port, host='127.0.0.1'):
-    """Run Streamlit in this process (it must have the main thread), as `streamlit run app.py` would. `host` is
-    127.0.0.1 (only this computer), or this computer's Tailscale address when "Use on my phone" is on."""
+    """Run Streamlit in this process (it must have the main thread), as `streamlit run app.py` would. It listens on
+    127.0.0.1 only: no other device can reach it (phone access was removed in the 19 Nov 2026 security review)."""
     from streamlit import config
     sys.path.insert(0, APP)
-    import phone
-    hosts = ['127.0.0.1', 'localhost'] if host == '127.0.0.1' else [host, *phone.names()]
+    host = '127.0.0.1'
+    hosts = ['127.0.0.1', 'localhost']
     from streamlit.web import bootstrap
     os.chdir(APP)  # Streamlit reads .streamlit/config.toml from here
     script = os.path.join(APP, 'app.py')
@@ -184,8 +184,8 @@ def serve(port, host='127.0.0.1'):
         except Exception:
             pass
     threading.Thread(target=warm_up, daemon=True).start()
-    # with phone use on, the program keeps running when its window here is closed (Quit stops it)
-    if os.environ.get('STOCK_STOP_WHEN_CLOSED') == '1' and host == '127.0.0.1':
+    # the program stops when its last window is closed
+    if os.environ.get('STOCK_STOP_WHEN_CLOSED') == '1':
         watch_windows()
     bootstrap.load_config_options(flag_options=flags)
     bootstrap.run(script, False, [], flags)
@@ -310,16 +310,14 @@ def update_waiting():
 
 def launch():
     running = running_port()
-    # already running: another window on it. It keeps running while it is used from the phone (or a window is open),
-    # so a newer version would never be installed: then stop it and start again, which installs the update first.
+    # already running: another window on it. While a window is open a newer version can't be installed: when one is
+    # waiting, stop it and start again, which offers the update first.
     if running and not (update_waiting() and stop_running()):
         open_window('http://{}:{}'.format(*running))
         return 0
-    # "Use on my phone": only on this computer's Tailscale address, on a fixed port so the phone's bookmark keeps working
     sys.path.insert(0, APP)
-    import phone
-    host = phone.server_options()[0]
-    port = phone.PORT if host != '127.0.0.1' and free_port(phone.PORT, host) == phone.PORT else free_port(host=host)
+    host = '127.0.0.1'  # only this computer
+    port = free_port(host=host)
     # the program starts while the update check asks GitHub, so the window opens sooner
     server = subprocess.Popen(worker_cmd('--serve', str(port), host), stdin=subprocess.DEVNULL, stdout=sys.stdout,
                               stderr=sys.stdout, env={**os.environ, 'STOCK_STOP_WHEN_CLOSED': '1'}, **hidden())

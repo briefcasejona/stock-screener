@@ -12,6 +12,7 @@ CHECKS = [  # key, step, name, how the value reads, threshold
      lambda r: f"FCF {core.pct(r['fcf_to_net_income'], 0)} of net profit", '≥ 80%'),
     ('q_debt', 'Quality', 'Debt you can carry',
      lambda r: 'debt not found' if r['net_debt_m'] is None else 'net cash' if r['net_debt_m'] <= 0
+     else 'net debt, and free cash flow not positive' if r['net_debt_to_fcf'] is None
      else f"net debt {r['net_debt_to_fcf']:.1f} years of FCF", '≤ 3 years of FCF'),
     ('q_margins', 'Quality', 'Margins hold',
      lambda r: f"{r['margin_kind']} margin low {core.pct(r['margin_min'])}, median {core.pct(r['margin_median'])}",
@@ -24,10 +25,33 @@ CHECKS = [  # key, step, name, how the value reads, threshold
     ('g_still_growing', 'GARP', 'Still growing', lambda r: f"{core.gpct(r['revenue_growth_3y'])} a year, last 3 years",
      'above zero'),
     ('g_price', 'GARP', 'Reasonable price',
-     lambda r: f"implied {core.gpct(r['implied_growth'])} vs delivered {core.gpct(r['fcf_ps_growth'])}", 'implied ≤ delivered'),
+     lambda r: f"implied {core.gpct(r['implied_growth'])} vs cautious base {core.gpct(r.get('base_growth'))}",
+     'implied ≤ base growth'),
 ]
-pct100 = lambda v: None if v is None else v * 100  # shown as 12.3%
-RESULT = {'pass': '✅ Pass', 'fail': '❌ Fail', 'n/a': '— No data'}
+pct100 = lambda v: float('nan') if v is None else v * 100  # shown as 12.3%, or blank
+RESULT = {'pass': '✅ Pass', 'fail': '❌ Fail', 'n/a': '— No data', 'ask': '❓ Ask why'}
+# why a check has no result
+NO_DATA = {
+    'q_roic': 'fewer than 5 years with a return on capital (negative capital or missing figures)',
+    'q_roic_min': 'fewer than 5 years with a return on capital (negative capital or missing figures)',
+    'q_cash_conversion': 'fewer than 5 years with both free cash flow and net profit, or total net profit not positive',
+    'q_debt': 'no debt figure for the latest year',
+    'q_margins': 'fewer than 5 years with a gross or operating margin',
+    'q_dilution': 'fewer than 5 years with a share count',
+    'g_revenue': 'fewer than 5 years of revenue, or the first year\'s revenue not positive',
+    'g_fcf_ps': 'fewer than 5 years of free cash flow per share, or its averages not positive',
+    'g_still_growing': 'fewer than 4 years of revenue',
+}
+
+
+def result(r, k):
+    v = r[k]
+    if v == 'n/a':
+        why = r.get('price_why') if k == 'g_price' else NO_DATA.get(k)
+        return f"— No data: {why}" if why else RESULT[v]
+    if v == 'ask':
+        return '❓ Ask why: the price assumes the company shrinks. Cheap, or does the market know something?'
+    return RESULT.get(v, v)
 
 
 def analyse_buttons(r):
@@ -50,13 +74,14 @@ def analyse_buttons(r):
             st.session_state['focus'] = r['ticker']
             st.switch_page(st.session_state['pages']['candidates'])
         return
-    st.markdown('**Analyse it:** reverse DCF, bear/base/bull values and 10 years of history. It then shows in Candidates.')
+    st.markdown(f"**Analyse it:** reverse DCF, bear/base/bull values and {r['years']} years of history. It then shows "
+                'in Candidates.')
     ready = core.data_ready()
     if not ready:
         st.caption(core.NOT_READY)
     a, b = st.columns(2)
     follow = a.button('Analyse and follow', type='primary', use_container_width=True, disabled=not ready,
-                      help='The weekly check keeps it up to date and notes new reports and price moves in the journal.')
+                      help='The monthly check keeps it up to date and notes new reports and price moves in the journal.')
     once = b.button('One-time analysis', use_container_width=True, disabled=not ready,
                     help='Analysed once, as of today; never updated.')
     if follow or once:
@@ -93,18 +118,26 @@ def render():
         st.warning('No screener data. Run a full refresh on the Update data page.')
         return
     f = st.columns([1.6, 1.9, 2, 2])
-    region = f[0].segmented_control('Region', ['All', 'US', 'Europe'], default='All', required=True)
-    least = f[1].segmented_control('Checks passed', [10, 9, 8, 0], default=10, required=True,
-                                   format_func=lambda v: 'Any' if v == 0 else f'{v}+' if v < 10 else 'All 10')
+    region = f[0].pills('Region', ['All', 'US', 'Europe'], default='All', key='scr_region') or 'All'
+    least = f[1].pills('Checks passed', [10, 9, 8, 0], default=10, key='scr_least',
+                       format_func=lambda v: 'Any' if v == 0 else f'{v}+' if v < 10 else 'All 10')
+    least = 10 if least is None else least
     sectors = sorted({r['sector'] for r in rows if r['sector']})
-    pick = f[2].multiselect('Sector', sectors, placeholder='All sectors')
-    q = f[3].text_input('Search', placeholder='Company or ticker').strip().lower()
+    pick = f[2].multiselect('Sector', sectors, placeholder='All sectors', key='scr_sectors')
+    q = f[3].text_input('Search', placeholder='Company or ticker', key='scr_q').strip().lower()
     # a search finds a company whatever its checks, and the companies you added yourself are always shown
     mine = added()
     view = [r for r in rows if (region == 'All' or r['region'] == region)
             and (r['passed'] >= least or q or 'your files' in r['source'] or r['ticker'] in mine)
             and (not pick or r['sector'] in pick) and (not q or q in r['company'].lower() or q in r['ticker'].lower())]
-    st.caption(f"{len(view)} of {len(rows)} companies shown · {sum(r['passed'] == 10 for r in rows)} pass all 10. "
+    from collections import Counter
+    dates = Counter(r.get('price_date') for r in rows if r.get('price_date'))
+    common = dates.most_common(1)[0][0] if dates else None
+    newer = sum(n for d, n in dates.items() if common and d > common)
+    st.caption(f"{len(view)} of {len(rows)} companies shown · {sum(r['passed'] == 10 for r in rows)} pass all 10"
+               + (f" · prices of {common}" + (f" ({newer} newer, from analyses and checks)" if newer else '')
+                  if common else '') + '. '
+               'A company whose figures need checking shows at most 9 of 10 until you have checked them. '
                'A search, and the companies you added yourself, show whatever their checks. '
                'Missing a company (many German and Swiss ones have no free data)? Add its annual report on the '
                '"Add a report" page.')
@@ -114,28 +147,47 @@ def render():
     table = pd.DataFrame([{
         'Company': r['company'], 'Ticker': r['ticker'], 'Region': r['region'], 'Sector': r['sector'],
         'Checks': r['passed'], 'Quality': f"{r['quality_passed']}/6", 'GARP': f"{r['garp_passed']}/4",
+        'Data': 'check first' if r.get('data_check') else '',
         'ROIC (median)': pct100(r['roic_median']), 'Revenue growth': pct100(r['revenue_growth']), 'Cash/share growth': pct100(r['fcf_ps_growth']),
-        'Growth price assumes': pct100(r['implied_growth']), 'P/E': r['pe'], 'Years': r['years'], 'Source': r['source'],
+        'Growth price assumes': pct100(r['implied_growth']), 'P/E': float('nan') if r['pe'] is None else r['pe'],
+        'Years': r['years'], 'Source': r['source'],
         'Notes': (lambda n: f"{n} note{'s' if n > 1 else ''}" if n else '')(len(core.data_notes(r['data_flags'])))}
         for r in view])
-    pc = st.column_config.NumberColumn(format='%.1f%%')
-    ev = st.dataframe(table, hide_index=True, on_select='rerun', selection_mode='single-row', key='scr_table',
+    # numbers stay numbers (they sort as numbers); an empty one shows blank, never "None"
+    shown = table.style.format({k: '{:.1f}%' for k in ('ROIC (median)', 'Revenue growth', 'Cash/share growth',
+                                                        'Growth price assumes')} | {'P/E': '{:.1f}'}, na_rep='')
+    # the table is keyed on the filters, so a changed filter never leaves an old row number selected; the company you
+    # had open stays selected when it is still in view
+    fkey = f"scr_table_{region}_{least}_{'|'.join(pick)}_{q}"
+    ss = st.session_state
+    keep = next((i for i, r in enumerate(view) if r['ticker'] == ss.get('scr_ticker')), None)
+    ev = st.dataframe(shown, hide_index=True, on_select='rerun', selection_mode=['single-row', 'single-cell'], key=fkey,
+                      selection_default={'selection': {'rows': [keep]}} if keep is not None else None,
                       height=min(420, 38 + 35 * len(view)), column_config={
                           'Company': st.column_config.TextColumn('Company', pinned=True),  # stays in view when scrolling
                           'Checks': st.column_config.ProgressColumn('Checks', min_value=0, max_value=10, format='%d/10'),
-                          'ROIC (median)': pc, 'Revenue growth': pc, 'Cash/share growth': pc, 'Growth price assumes': pc,
-                          'P/E': st.column_config.NumberColumn(format='%.1f'),
+                          'Data': st.column_config.TextColumn(
+                              'Data', help='"check first": a figure differs from a second source, or debt, capital '
+                                           'spending or the share count looks odd. Click the row for the notes.'),
                           'Notes': st.column_config.TextColumn(
                               'Notes', help='Notes on the data. Click the row to read them in full.')})
-    if not ev.selection.rows:
+    picked = list(ev.selection.rows) + [cell[0] for cell in getattr(ev.selection, 'cells', [])]
+    picked = [i for i in picked if i < len(view)]
+    if not picked:
         st.caption('Click a row to see its checks and analyse it.')
         return
-    r = view[ev.selection.rows[0]]
+    r = view[picked[0]]
+    ss['scr_ticker'] = r['ticker']
     st.divider()
     st.subheader(r['company'])
     st.caption(f"{r['ticker']} · {r['region']} · {r['sector']} · {r['years']} years of figures "
-               f"({r['first_year']}–{r['last_year']}) · source {r['source']} · price {r['price']} {r['price_currency']}")
-    st.dataframe(pd.DataFrame([{'Step': s, 'Check': n, 'Value': v(r), 'Threshold': t, 'Result': RESULT.get(r[k], r[k])}
-                               for k, s, n, v, t in CHECKS]), hide_index=True)
+               f"({r['first_year']}–{r['last_year']}) · source {r['source']} · price {r['price']} {r['price_currency']}"
+               + (f" on {r['price_date']}" if r.get('price_date') else ''))
+    st.dataframe(pd.DataFrame([{'Step': s, 'Check': n, 'Value': v(r), 'Threshold': t, 'Result': result(r, k)}
+                               for k, s, n, v, t in CHECKS]), hide_index=True,
+                 column_config={'Result': st.column_config.TextColumn('Result', width='large')})
+    st.caption('"Reasonable price": the growth today\'s price assumes (reverse DCF at 9%) should be no more than the '
+               'cautious base growth (the lower of cash-flow and recent revenue growth, kept between 2% and 12%), not '
+               'the best years\' growth.')
     core.show_notes(r['data_flags'], st)
     analyse_buttons(r)

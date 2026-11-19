@@ -54,6 +54,20 @@ def per_year(rows):
     return out
 
 
+def base_growth(delivered, recent_revenue):
+    """The cautious growth rate the playbook starts from: the lower of delivered cash-per-share growth and the last
+    3 years' revenue growth, kept between 2% and 12%, rounded to the nearest 0.5%. The screener's price check and the
+    analysis's starting base case both use it, so the two never disagree."""
+    known = [g for g in (delivered, recent_revenue) if g is not None]
+    base = min(max(min(known) if known else 0.02, 0.02), 0.12)
+    return round(base * 200) / 200
+
+
+# notes that mean a figure may be wrong: a company with one of these never shows as passing all 10
+SERIOUS = ('differs more than 10% from a second source', 'debt is taken as zero', 'share count jumps',
+           'EPS x shares differs', 'capital spending not found', 'the larger is used')
+
+
 def growth_of_averages(values, k):
     """Compound growth between the average of the first k and the last k values."""
     n = len(values)
@@ -67,6 +81,9 @@ def screen(ticker, meta, rows, price, fx, second_source=()):
     ys = per_year(rows)[-YEARS:]
     res = {'ticker': ticker, **meta, 'years': len(ys), 'first_year': ys[0]['year'], 'last_year': ys[-1]['year']}
     flags = []
+    if len(ys) < YEARS:
+        flags.append(f'only {len(ys)} years of figures (the checks normally look at {YEARS}), so the growth and '
+                     'consistency checks rest on a shorter record')
     # quality
     roics = [y['roic'] for y in ys if y['roic'] is not None]
     res['roic_median'] = statistics.median(roics) if len(roics) >= MIN_YEARS else None
@@ -108,16 +125,29 @@ def screen(ticker, meta, rows, price, fx, second_source=()):
     res['fcf_ps_growth'] = growth_of_averages(fps, k) if len(fps) >= MIN_YEARS else None
     # valuation (price converted into the reporting currency)
     res['price'], res['price_currency'] = price['price'], price['currency']
+    res['price_date'] = price.get('date', '')
     res['fx_to_report'] = fx
     p = price['price'] * fx if price and fx else None
     res['fcf0'] = sum(fps[-3:]) / 3 if len(fps) >= 3 else None
     res['net_cash_ps'] = -last['net_debt'] / last['diluted_shares'] if last['diluted_shares'] and last['net_debt'] is not None else None
     res['implied_growth'] = None
+    res['base_growth'] = (base_growth(res['fcf_ps_growth'], res['revenue_growth_3y'])
+                          if res['fcf_ps_growth'] is not None or res['revenue_growth_3y'] is not None else None)
+    res['price_why'] = ''
+    if not p:
+        res['price_why'] = 'no share price'
+    elif res['fcf0'] is None:
+        res['price_why'] = 'fewer than 3 years of free cash flow per share'
+    elif res['fcf0'] <= 0:
+        res['price_why'] = 'free cash flow over the last 3 years is not positive, and a reverse DCF needs cash coming in'
+    elif res['net_cash_ps'] is None:
+        res['price_why'] = 'no debt figure for the latest year'
     if p and res['fcf0'] and res['fcf0'] > 0 and res['net_cash_ps'] is not None:
         try:
             res['implied_growth'] = reverse_dcf(p, res['fcf0'], R_BASE, G_T_BASE, res['net_cash_ps'])
         except ValueError:
             flags.append('implied growth outside -50%..100%')
+            res['price_why'] = 'the price implies growth outside −50%..+100% a year'
     res['pe'] = p / last['eps_diluted'] if p and last['eps_diluted'] and last['eps_diluted'] > 0 else None
     res['fcf_yield'] = res['fcf0'] / p if p and res['fcf0'] is not None else None
     if last['eps_diluted'] and last['net_income'] and last['diluted_shares']:
@@ -143,13 +173,21 @@ def screen(ticker, meta, rows, price, fx, second_source=()):
         'g_revenue': (res['revenue_growth'], lambda v: v >= 0.05),
         'g_fcf_ps': (res['fcf_ps_growth'], lambda v: v >= 0.05),
         'g_still_growing': (res['revenue_growth_3y'], lambda v: v > 0),
-        'g_price': (res['implied_growth'], lambda v: res['fcf_ps_growth'] is not None and v <= res['fcf_ps_growth']),
+        # the price may assume no more than the cautious base growth (not the best years' growth)
+        'g_price': (res['implied_growth'], lambda v: res['base_growth'] is not None and v <= res['base_growth']),
     }
     for name, (v, ok) in tests.items():
         res[name] = 'n/a' if v is None else ('pass' if ok(v) else 'fail')
+    if res['implied_growth'] is not None and res['implied_growth'] < 0:
+        res['g_price'] = 'ask'  # the market expects shrinking: cheap, or something it knows; never a plain pass
     res['quality_passed'] = sum(res[n] == 'pass' for n in tests if n.startswith('q_'))
     res['garp_passed'] = sum(res[n] == 'pass' for n in tests if n.startswith('g_'))
     res['passed'] = res['quality_passed'] + res['garp_passed']
+    res['data_check'] = 'yes' if any(k in f for f in flags for k in SERIOUS) else ''
+    if res['data_check'] and res['passed'] == 10:
+        res['passed'] = 9  # all 10 only once the data has been checked
+        flags.append('passes every check, but shown as 9 of 10 until the figures marked above are checked against '
+                     'the annual report')
     res['data_flags'] = '; '.join(flags)
     return res
 

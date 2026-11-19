@@ -5,11 +5,13 @@ Differences from the worked example, on purpose (they keep it mechanical, so it 
 - starting free cash flow is the average FCF per share of the last 3 years ('average'), or for cyclicals the
   average FCF margin times the latest revenue ('normalised', the playbook's special case);
 - P/E is on the latest full year, not the latest 12 months;
-- history in another currency than the share price uses today's exchange rate for every year.
+- history in another currency than the share price uses each year's own year-end exchange rate.
 The scenario growth rates are judgement. Unless they are given, a starting rule sets them from the growth the
-company delivered (default_assumptions), and the result says so. A price at or below buy-below then reads
-'Deep dive', not 'Buy': the playbook buys only after reading the annual report and setting the growth rates by hand.
-Discount rates and long-term growth are the playbook's (10/2%, 9/2.5%, 8/3%).
+company delivered (default_assumptions), and the result says so ('reviewed' is False until you set them yourself).
+The program gives no Buy/Wait label (council, 19 Nov 2026): the page shows the plain fact, price against buy-below,
+next to your own latest decision from your journal.
+All three scenarios use the same 9% discount rate and 2.5% growth after year 10 (council, 19 Nov 2026; it was
+10/2%, 9/2.5%, 8/3%, which made the range much wider than the growth rates alone). Only the growth differs.
 
 Run: python3 -I code/analyse.py ADBE   (prints the result; watchlist.py saves it)
 """
@@ -29,7 +31,8 @@ import screen as scr  # noqa: E402
 from build_screen_data import display_names  # noqa: E402
 from refresh_company import find  # noqa: E402
 
-RATES = {'bear': (0.10, 0.02), 'base': (0.09, 0.025), 'bull': (0.08, 0.03)}  # discount rate, long-term growth
+RATE = (0.09, 0.025)  # discount rate, growth after year 10: the same in every scenario
+RATES = {'bear': RATE, 'base': RATE, 'bull': RATE}
 EXCHANGES = {'NMS': 'Nasdaq', 'NGM': 'Nasdaq', 'NCM': 'Nasdaq', 'NYQ': 'NYSE', 'ASE': 'NYSE American', 'BTS': 'Cboe',
              'AMS': 'Euronext Amsterdam', 'PAR': 'Euronext Paris', 'BRU': 'Euronext Brussels', 'LIS': 'Euronext Lisbon',
              'ISE': 'Euronext Dublin', 'OSL': 'Oslo Børs', 'MIL': 'Borsa Italiana', 'MCE': 'Bolsa de Madrid',
@@ -44,17 +47,25 @@ r4 = lambda x: None if x is None else round(x, 4)
 def default_assumptions(delivered, recent_revenue):
     """Starting rule: base = the lower of delivered FCF/share growth and the last 3 years' revenue growth, kept between
     2% and 12%; bear = half of base; bull = the delivered growth (at least 1.5 x base), at most 20%. On ASML this gives
-    12% / 6% / 20%, close to the worked example's judgement (12% / 6% / 19%)."""
-    known = [g for g in (delivered, recent_revenue) if g is not None]
-    base = min(max(min(known) if known else 0.02, 0.02), 0.12)
-    base = round(base * 200) / 200  # nearest 0.5%
+    12% / 6% / 20%, close to the worked example's judgement (12% / 6% / 19%). The screener's "reasonable price" check
+    uses the same base growth (screen.base_growth)."""
+    base = scr.base_growth(delivered, recent_revenue)
     bull = min(max(delivered if delivered is not None else 0, base * 1.5), 0.20)
     return {'bear': round(base / 2, 4), 'base': base, 'bull': round(bull, 4),
             'source': 'starting rule from delivered growth (not yet reviewed)'}
 
 
+def margin():
+    """Your margin of safety (the laptop program passes it; 20% otherwise)."""
+    try:
+        return float(os.environ.get('STOCK_MARGIN', 20))
+    except ValueError:
+        return 20.0
+
+
 def market(symbol, price_currency, report_currency):
-    """Yahoo: daily closes (12 years), exchange name, and today's rate from the price currency to the report currency."""
+    """Yahoo: daily closes (12 years), exchange name, today's rate from the price currency to the report currency, and
+    that rate's history (so each past year is converted at its own rate, not today's)."""
     import yfinance as yf
     tk = yf.Ticker(symbol)
     h = tk.history(period='12y', interval='1d', auto_adjust=False).dropna(subset=['Close'])
@@ -63,12 +74,13 @@ def market(symbol, price_currency, report_currency):
         exchange = EXCHANGES.get(tk.fast_info['exchange'], tk.fast_info['exchange'])
     except Exception:
         exchange = ''
-    fx = {}
+    fx, fx_hist = {}, {}
     pc = 'GBP' if price_currency in ('GBp', 'GBX') else price_currency
     if pc != report_currency:
-        f = yf.Ticker(f'{pc}{report_currency}=X').history(period='5d', interval='1d').dropna(subset=['Close'])
+        f = yf.Ticker(f'{pc}{report_currency}=X').history(period='12y', interval='1d').dropna(subset=['Close'])
         fx = {pc: {report_currency: float(f['Close'].iloc[-1])}}
-    return closes, exchange, fx
+        fx_hist = {str(d.date()): float(v) for d, v in f['Close'].items()}
+    return closes, exchange, fx, fx_hist
 
 
 def close_on(closes, day):
@@ -97,10 +109,10 @@ def check_rows(company, res):
         ('GARP', 'Growing revenue', f"{gpct(res['revenue_growth'])} a year ({res['first_year']}–{res['last_year']})", '≥ 5%', 'g_revenue'),
         ('GARP', 'Growing cash per share', f"{gpct(res['fcf_ps_growth'])} a year", '≥ 5%', 'g_fcf_ps'),
         ('GARP', 'Still growing', f"{gpct(res['revenue_growth_3y'])} a year, last 3 years", 'Above zero', 'g_still_growing'),
-        ('GARP', 'Reasonable price', f"Implied {gpct(res['implied_growth'])} vs delivered {gpct(res['fcf_ps_growth'])}",
-         'Implied ≤ delivered', 'g_price'),
+        ('GARP', 'Reasonable price', f"Implied {gpct(res['implied_growth'])} vs base {gpct(res['base_growth'])}",
+         'Implied ≤ cautious base growth', 'g_price'),
     ]
-    word = {'pass': 'Pass', 'fail': 'Fail', 'n/a': 'No data'}
+    word = {'pass': 'Pass', 'fail': 'Fail', 'n/a': 'No data', 'ask': 'Ask why'}
     return [{'company': company, 'step': st, 'filter': f, 'value': v, 'threshold': t, 'result': word[res[key]]}
             for st, f, v, t, key in rows]
 
@@ -116,7 +128,7 @@ def analyse(ticker, assumptions=None, fcf_basis='average', follow='Watching', an
     import yfinance as yf
     fi = yf.Ticker(u['yahoo']).fast_info
     raw_ccy = fi['currency']
-    closes, exchange, fx = market(u['yahoo'], raw_ccy, rc)
+    closes, exchange, fx, fx_hist = market(u['yahoo'], raw_ccy, rc)
     price_date = max(closes)
     raw_price = closes[price_date]
     pence = raw_ccy in ('GBp', 'GBX')
@@ -131,8 +143,8 @@ def analyse(ticker, assumptions=None, fcf_basis='average', follow='Watching', an
     # starting free cash flow per share, in the price currency
     if fcf_basis == 'normalised':
         pairs = [(y['fcf'], y['revenue']) for y in ys if y['fcf'] is not None and y['revenue']]
-        margin = sum(f for f, _ in pairs) / sum(r for _, r in pairs)
-        fcf0_report = margin * ys[-1]['revenue'] / ys[-1]['diluted_shares']
+        fcf_margin = sum(f for f, _ in pairs) / sum(r for _, r in pairs)
+        fcf0_report = fcf_margin * ys[-1]['revenue'] / ys[-1]['diluted_shares']
     else:
         fcf0_report = res['fcf0']
     if fcf0_report is None or fcf0_report <= 0:
@@ -142,20 +154,22 @@ def analyse(ticker, assumptions=None, fcf_basis='average', follow='Watching', an
     fcf0, net_cash = fcf0_report / k, res['net_cash_ps'] / k
     implied = reverse_dcf(price, fcf0, *RATES['base'], net_cash)
 
-    a = assumptions or default_assumptions(res['fcf_ps_growth'], res['revenue_growth_3y'])
+    a = dict(assumptions or default_assumptions(res['fcf_ps_growth'], res['revenue_growth_3y']))
     scen = {}
     for name, (r, g_t) in RATES.items():
         scen[name] = dcf(fcf0, a[name], r, g_t, net_cash) | {'g': a[name], 'r': r, 'g_t': g_t}
     base = scen['base']['value']
-    buy_below = base * 0.7
+    buy_below = base * (1 - margin() / 100)
 
     hist = []
     for y, row in zip(ys, rows[-len(ys):]):
+        # each year at the exchange rate of its own year end (today's rate would move every past P/E with the currency)
+        ky = (close_on(fx_hist, row['period_end']) or k) if fx_hist else k  # the rate at that year's end
         p = close_on(closes, row['period_end'])
         p = disp(p) if p is not None else None
-        eps = y['eps_diluted'] / k if y['eps_diluted'] is not None else None
+        eps = y['eps_diluted'] / ky if y['eps_diluted'] is not None else None
         hist.append({'year': y['year'], 'revenue_m': r1(y['revenue'] / 1e6) if y['revenue'] else None,
-                     'fcf_per_share': r2(y['fcf_ps'] / k) if y['fcf_ps'] is not None else None, 'eps': r2(eps),
+                     'fcf_per_share': r2(y['fcf_ps'] / ky) if y['fcf_ps'] is not None else None, 'eps': r2(eps),
                      'year_end_price': r2(p), 'pe_year_end': r1(p / eps) if p and eps and eps > 0 else None,
                      'roic': r4(y['roic']), 'gross_margin': r4(y['gross_margin'])})
     pes = [h['pe_year_end'] for h in hist if h['pe_year_end'] is not None]
@@ -164,7 +178,8 @@ def analyse(ticker, assumptions=None, fcf_basis='average', follow='Watching', an
     name = company or display_names().get(ticker, meta['name']).replace('|', '').strip()
     today = analysed or date.today().isoformat()
     if ccy != rc:
-        notes.append(f'figures are reported in {rc}; per-share values are converted at today\'s rate')
+        notes.append(f'figures are reported in {rc}; the value per share uses today\'s exchange rate, the history '
+                     'each year\'s own year-end rate')
     candidate = {
         'company': name, 'ticker': ticker, 'exchange': exchange, 'currency': ccy, 'price': r2(price), 'price_date': price_date,
         'bear': r1(scen['bear']['value']), 'base': r1(base), 'bull': r1(scen['bull']['value']),
@@ -172,13 +187,14 @@ def analyse(ticker, assumptions=None, fcf_basis='average', follow='Watching', an
         'implied_growth': r4(implied), 'delivered_growth': r4(res['fcf_ps_growth']),
         'pe_ltm': r1(res['pe']), 'pe_basis': f"P/E, {res['last_year']} full year",
         'pe_median_10y': r1(statistics.median(pes)) if pes else None, 'pe_min_10y': r1(min(pes)) if pes else None,
-        'pe_max_10y': r1(max(pes)) if pes else None, 'fcf0': r2(fcf0), 'net_cash_per_share': r2(net_cash),
+        'pe_max_10y': r1(max(pes)) if pes else None, 'fcf0': r4(fcf0), 'net_cash_per_share': r4(net_cash),
         'quality_passed': res['quality_passed'], 'quality_total': 6, 'garp_passed': res['garp_passed'], 'garp_total': 4,
-        'decision': ('Buy' if a.get('reviewed') else 'Deep dive') if price <= buy_below else 'Wait',
+        'reviewed': a.get('reviewed') is True, 'years': len(ys), 'first_year': ys[0]['year'],
         'next_check': f"Annual report FY{last_end.year + 1}, around {expected.strftime('%b %Y')}",
         'follow': follow, 'analysed': today, 'figures_to': rows[-1]['period_end'], 'region': 'US' if region == 'us' else 'Europe',
         'fcf_basis': 'normalised (average margin x latest revenue)' if fcf_basis == 'normalised' else 'average of the last 3 years',
         'assumptions_source': a.get('source', 'set by hand'), 'notes': '; '.join(notes),
+        'price_raw': raw_price, 'price_currency_raw': raw_ccy, 'yahoo': u['yahoo'],
     }
     return {
         'ticker': ticker, 'region': region, 'candidate': candidate,

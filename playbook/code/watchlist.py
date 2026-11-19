@@ -1,18 +1,18 @@
 """Watchlist and one-time analyses.
 
 Every company the user has analysed is in journal/watchlist.json with a mode:
-- 'watch': checked every week. Its figures and price are refreshed; when a new year shows up (a new annual report)
+- 'watch': checked every month. Its figures and price are refreshed; when a new year shows up (a new annual report)
   the 10 checks and the valuation are re-run and noted; a new quarterly or half-year report is noted too (the analysis
   uses yearly figures).
 - 'once': a one-time analysis, kept with its date and never updated.
 Each analysis is saved in journal/analyses/<ticker>.json (analyse.py's output). Changes that matter (added,
-new annual report, price crossing a buy-below price) are appended to journal/journal.json, never edited.
+new annual report, price crossing your buy-below price) are appended to journal/journal.json, never edited.
 
 Run (from anywhere):
   python3 -I code/watchlist.py add ADBE [--once] [--name "Adobe"] [--base 0.10 --bear 0.05 --bull 0.15] [--normalised]
   python3 -I code/watchlist.py set ADBE --base 0.09 [--bear ..] [--bull ..] [--normalised|--average] [--reviewed]
   python3 -I code/watchlist.py watch ADBE | once ADBE | remove ADBE | list
-  python3 -I code/watchlist.py check            # the weekly check; prints what changed as JSON
+  python3 -I code/watchlist.py check            # the monthly check; prints what changed as JSON
 Then python3 -I code/build_dashboard_data.py and upload the datasets.
 WATCHLIST_DIR overrides the journal folder (for tests).
 """
@@ -29,14 +29,13 @@ PLAYBOOK = os.path.dirname(CODE)
 SCREENER = os.path.join(os.path.dirname(PLAYBOOK), 'screener')
 sys.path.insert(0, CODE)
 sys.path.insert(0, os.path.join(SCREENER, 'code'))
-from analyse import analyse  # noqa: E402
-from refresh_company import find, refresh  # noqa: E402
+from analyse import analyse, margin  # noqa: E402
+from refresh_company import find, refresh, replace_rows  # noqa: E402
 import localdata  # noqa: E402
 import net  # noqa: E402
 
 STATE = localdata.JOURNAL_DIR
 LIST, JOURNAL, ANALYSES = f'{STATE}/watchlist.json', f'{STATE}/journal.json', f'{STATE}/analyses'
-MARGINS = (5, 10, 20, 30)
 ANNUAL_SEC, INTERIM_SEC = {'10-K', '20-F', '40-F'}, {'10-Q'}
 
 
@@ -56,23 +55,41 @@ def entry_of(entries, ticker):
     return e
 
 
-def journal_add(a, why, change_mind='A new annual report, or the price reaching a buy-below price.'):
+def journal_add(a, why, change_mind='A new annual report, or the price reaching your buy-below price.'):
+    """A note the program writes. It records what happened, never a decision: Buy, Wait and No are yours."""
     c = a['candidate']
     entries = json.load(open(JOURNAL, encoding='utf-8', errors='replace')) if os.path.exists(JOURNAL) else []
     today = date.today().isoformat()
     base_id = f"{today}-{c['ticker']}"
     n = sum(1 for e in entries if e['id'].startswith(base_id))
     entries.append({'id': base_id if not n else f'{base_id}-{n + 1}', 'date': today, 'company': c['company'],
-                    'price': c['price'], 'currency': c['currency'], 'decision': c['decision'],
+                    'price': c['price'], 'currency': c['currency'], 'decision': 'Note',
+                    'reviewed': c.get('reviewed', False),
                     'implied_growth': c['implied_growth'], 'bear': c['bear'], 'base': c['base'], 'bull': c['bull'],
                     'why': why, 'change_mind': change_mind, 'next_check': c['next_check'], 'author': os.environ.get('WATCHLIST_AUTHOR', 'Claude (watchlist)')})
     localdata.write_json(JOURNAL, entries, indent=1)
 
 
 def below(a):
-    """For each margin of safety: is today's price at or below the buy-below price?"""
+    """At your margin of safety: is today's price at or below the buy-below price?"""
+    c, m = a['candidate'], margin()
+    return {f'{m:g}': c['price'] <= c['base'] * (1 - m / 100)}
+
+
+def same_price_everywhere(ticker, a):
+    """The analysis just fetched a newer price: the screener gets the same one, so both pages agree."""
+    import subprocess
     c = a['candidate']
-    return {str(m): c['price'] <= c['base'] * (1 - m / 100) for m in MARGINS}
+    region, u = find(ticker)
+    path = os.path.join(SCREENER, 'raw', f'prices_{region}.csv')
+    if not os.path.exists(path) or c.get('price_raw') is None:
+        return
+    replace_rows(path, ticker, [{'ticker': ticker, 'yahoo': c.get('yahoo') or u['yahoo'], 'price': c['price_raw'],
+                                 'currency': c['price_currency_raw'], 'date': c['price_date']}],
+                 ['ticker', 'yahoo', 'price', 'currency', 'date'])
+    code = os.path.join(SCREENER, 'code')
+    subprocess.run(localdata.python_cmd(f'{code}/screen.py', region), check=True, capture_output=True, **localdata.hidden())
+    subprocess.run(localdata.python_cmd(f'{code}/build_screen_data.py'), check=True, capture_output=True, **localdata.hidden())
 
 
 def money(v, cur):
@@ -141,10 +158,12 @@ def cmd_add(args):
     e['below'] = below(a)
     entries.append(e)
     save(entries)
-    c = a['candidate']
+    same_price_everywhere(args.ticker, a)
+    c, m = a['candidate'], margin()
     journal_add(a, f"{'Added to the watchlist' if e['mode'] == 'watch' else 'One-time analysis'}: price "
-                   f"{money(c['price'], c['currency'])} against a buy-below of {money(c['base'] * 0.7, c['currency'])} "
-                   f"(base value minus 30%). {sum(r['result'] == 'Pass' for r in a['checks'])} of 10 checks pass. "
+                   f"{money(c['price'], c['currency'])} against a buy-below of "
+                   f"{money(c['base'] * (1 - m / 100), c['currency'])} (base value minus {m:g}%). "
+                   f"{sum(r['result'] == 'Pass' for r in a['checks'])} of 10 checks pass. "
                    f"Growth assumptions: {a['assumptions'].get('source', 'set by hand')}.")
     out = {'added': args.ticker, 'candidate': c, 'assumptions': a['assumptions']}
     print(json.dumps(out, indent=1, ensure_ascii=False))
@@ -176,9 +195,11 @@ def cmd_set(args):
     if args.average:
         e['fcf_basis'] = 'average'
     e['analysed'] = date.today().isoformat()
+    e.pop('worked_example', None)  # your own numbers replace the worked example's: saved and analysed like any other
     a = run_analysis(e)
     e['below'] = below(a)
     save(entries)
+    same_price_everywhere(args.ticker, a)
     c = a['candidate']
     journal_add(a, f"Assumptions changed: growth {e['assumptions']['bear']:.1%} / {e['assumptions']['base']:.1%} / "
                    f"{e['assumptions']['bull']:.1%}, starting cash flow {c['fcf_basis']}. Base value now "
@@ -232,11 +253,11 @@ def cmd_list(_):
 
 
 def cmd_check(args):
-    """The weekly check. Every watched company gets fresh figures and a fresh price (one-time analyses are skipped);
+    """The monthly check. Every watched company gets fresh figures and a fresh price (one-time analyses are skipped);
     a new annual report is one whose year now shows up in the figures. Prints a JSON list of events."""
     import subprocess
     entries = load()
-    events, problems, regions = [], [], set()
+    events, problems, regions, in_zone = [], [], set(), []
     for e in entries:
         if e['mode'] != 'watch' or e.get('hidden') or (args.ticker and e['ticker'] != args.ticker):
             continue
@@ -254,7 +275,7 @@ def cmd_check(args):
                 passed = sum(r['result'] == 'Pass' for r in a['checks'])
                 events.append({'ticker': t, 'company': c['company'], 'event': 'annual report', 'year_to': a['last_period_end'],
                                'report': rep['annual'], 'base_was': was and was['base'], 'base_now': c['base'],
-                               'checks_passed': passed, 'decision': c['decision'], 'price': c['price'], 'currency': c['currency']})
+                               'checks_passed': passed, 'price': c['price'], 'currency': c['currency']})
                 journal_add(a, f"New annual report (year to {a['last_period_end']}): figures, checks and valuation re-run. "
                                f"Base value {money(was['base'], c['currency']) + ' → ' if was else ''}"
                                f"{money(c['base'], c['currency'])}; {passed} of 10 checks pass.")
@@ -277,6 +298,9 @@ def cmd_check(args):
                                f"(base value {money(c['base'], c['currency'])}).")
             e['below'] = now
             e['reports'] = rep
+            if any(now.values()):
+                in_zone.append({'ticker': t, 'company': c['company'], 'price': c['price'], 'currency': c['currency'],
+                                'buy_below': round(c['base'] * (1 - margin() / 100), 2)})
         except Exception as ex:  # one company's problem must not stop the others; it is reported
             problems.append({'ticker': t, 'problem': f'{type(ex).__name__}: {ex}'})
     save(entries)
@@ -287,8 +311,8 @@ def cmd_check(args):
             subprocess.run(localdata.python_cmd(f'{code}/{script}', region), check=True, capture_output=True, **localdata.hidden())
     if regions:
         subprocess.run(localdata.python_cmd(f'{code}/build_screen_data.py'), check=True, capture_output=True, **localdata.hidden())
-    out = {'checked': [e['ticker'] for e in entries if e['mode'] == 'watch'], 'events': events, 'problems': problems,
-           'at': date.today().isoformat()}
+    out = {'checked': [e['ticker'] for e in entries if e['mode'] == 'watch' and not e.get('hidden')], 'events': events,
+           'problems': problems, 'in_buy_zone': in_zone, 'at': date.today().isoformat()}
     print(json.dumps(out, indent=1, ensure_ascii=False))
     return out
 

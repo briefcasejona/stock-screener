@@ -98,30 +98,33 @@ def render():
                 st.error('That doesn\'t look like an email address.')
     st.divider()
 
-    st.subheader('Monthly check')
-    st.write('For every company you follow: fresh figures and price, the analysis re-run when a new annual report is '
-             'out, and a journal note when the price crosses your buy-below price. It runs when you open the program '
-             f'and a month has passed (next: {core.next_check_date():%d %b %Y}); you see it run at the top of the page.')
+    st.subheader('Refresh now')
+    n = len(core.load_screen())
+    st.write('One button for fresh data: first the monthly check for every company you follow (fresh figures and '
+             'price, the analysis re-run when a new annual report is out, a journal note when the price crosses your '
+             f'buy-below price), then today\'s prices and exchange rates for all {n or "the"} companies in the screener '
+             'and their 10 checks again. The check takes a minute; the prices 5–10 minutes in the background. The '
+             f'monthly check also runs by itself when you open the program and a month has passed (next: '
+             f'{core.next_check_date():%d %b %Y}).')
     if not core.data_ready():
         st.caption(core.NOT_READY)
-    if st.button('Run the monthly check now', type='primary', disabled=not core.data_ready()):
-        with st.spinner('Checking the companies you follow...'):
-            out, err = core.run_check()
-        data.changed()
-        if err:
-            st.error(err)
-    show_check(core.settings().get('last_check_result'))
-
-    st.divider()
-    st.subheader('Prices for the whole screener')
-    n = len(core.load_screen())
-    st.write(f'Today\'s prices and exchange rates for all {n or "the"} companies in the screener, then the 10 checks '
-             'again (the "reasonable price" check depends on the price). Takes 5–10 minutes. Your candidates show the '
-             'same new prices.')
     busy = jobs.running() is not None
-    if st.button('Refresh prices', disabled=busy):
+    if busy:
+        st.caption('A refresh is running now (progress at the top of this page).')
+    if st.button('Refresh now', type='primary', icon=':material/refresh:', disabled=busy or not core.data_ready()):
+        followed = any(e['mode'] == 'watch' and not e.get('hidden') for e in core.watchlist())
+        err = None
+        if followed:
+            with st.spinner('Checking the companies you follow...'):
+                out, err = core.run_check()
+            data.changed()
+        if err:  # shown after the rerun below
+            st.session_state['refresh_err'] = f'The monthly check could not finish: {err}. The prices are refreshed anyway.'
         jobs.start('prices')
         st.rerun()
+    if st.session_state.get('refresh_err'):
+        st.error(st.session_state.pop('refresh_err'))
+    show_check(core.settings().get('last_check_result'))
 
     st.divider()
     st.subheader('Full refresh')

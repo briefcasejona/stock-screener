@@ -10,7 +10,8 @@ import core
 from views import data, quarter
 
 # colours for your own journal decisions; "Note" is what the program writes (it never decides for you)
-BADGE = {'Buy': 'green', 'Wait': 'gray', 'No': 'red', 'Sell': 'orange', 'Still researching': 'blue', 'Note': 'gray'}
+BADGE = {'Buy': 'green', 'Wait': 'gray', 'No': 'red', 'Sell': 'orange', 'Still researching': 'blue', 'Note': 'gray',
+         'Keep': 'violet', 'Trim': 'orange'}
 
 
 def palette():
@@ -301,7 +302,7 @@ def journal_form(c, key=''):
     n = st.session_state.get(f"jr_n_{c['ticker']}{key}", 0)
     with st.form(f"jr_{c['ticker']}{key}_{n}", enter_to_submit=False):
         st.markdown(f"**Write a journal entry** for {c['company']}")
-        dec = st.segmented_control('Your decision', list(core.DECISIONS), default='Wait', required=True,
+        dec = st.segmented_control('Your decision', list(core.PICK_DECISIONS), default='Wait', required=True,
                                    help='No = you decided not to buy (it used to be called "Pass").')
         why = st.text_area('Why? (in your own words)', placeholder='What the business does well, what the price assumes, '
                                                                   'and why you act or wait.')
@@ -694,7 +695,7 @@ def render():
                                    for x in checks]), hide_index=True,
                      column_config={'Check': st.column_config.TextColumn(pinned=True)})
         st.caption('Six quality checks (is it a great business?) and four GARP checks (is it growing, at a reasonable '
-                   'price?). Passing all 10 means worth a deep dive, never "buy".')
+                   'price?). Passing all 10 means worth a closer look, never "buy".')
     with t[2]:
         history_charts([h for h in d['history'] if h['company'] == c['company']], c)
     with t[3]:

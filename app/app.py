@@ -5,7 +5,7 @@ from datetime import date
 import streamlit as st
 
 import core
-from views import candidates, course, guide, journal, portfolio_page, reports, scoreboard, screener, update
+from views import candidates, course, guide, home, journal, portfolio_page, reports, scoreboard, screener, update
 
 # the sidebar starts closed: it holds only the monthly check's date and Quit, and the pages get the full width
 st.set_page_config(page_title='Stock Screener', page_icon=':material/query_stats:', layout='wide',
@@ -14,16 +14,20 @@ st.html('<style>' + open(os.path.join(os.path.dirname(os.path.abspath(__file__))
         + '</style>')
 
 PAGES = {
-    'candidates': st.Page(candidates.render, title='Candidates', icon=':material/star:', url_path='candidates', default=True),
-    'scoreboard': st.Page(scoreboard.render, title='Scoreboard', icon=':material/scoreboard:', url_path='scoreboard'),
-    'portfolio': st.Page(portfolio_page.render, title='Portfolio', icon=':material/account_balance:', url_path='portfolio'),
+    'home': st.Page(home.render, title='Start here', icon=':material/home:', url_path='home', default=True),
+    # second, so it stays in view when the bar folds pages into "more" (a small screen, or zoomed in)
+    'guide': st.Page(guide.render, title='How to use it', icon=':material/school:', url_path='guide'),
+    'candidates': st.Page(candidates.render, title='Candidates', icon=':material/star:', url_path='candidates'),
     'screener': st.Page(screener.render, title='Screener', icon=':material/filter_alt:', url_path='screener'),
-    'course': st.Page(course.render, title='Course', icon=':material/menu_book:', url_path='course'),
     'journal': st.Page(journal.render, title='Journal', icon=':material/edit_note:', url_path='journal'),
+    'course': st.Page(course.render, title='Course', icon=':material/menu_book:', url_path='course'),
+    'scoreboard': st.Page(scoreboard.render, title='Scoreboard', icon=':material/scoreboard:', url_path='scoreboard'),
+    # your own data: what you hold, the reports you add, and getting fresh data
+    'portfolio': st.Page(portfolio_page.render, title='Portfolio', icon=':material/account_balance:', url_path='portfolio'),
     'reports': st.Page(reports.render, title='Add a report', icon=':material/upload_file:', url_path='reports'),
     'update': st.Page(update.render, title='Update data', icon=':material/sync:', url_path='update'),
-    'guide': st.Page(guide.render, title='How to use it', icon=':material/school:', url_path='guide'),
 }
+MY_DATA = ('portfolio', 'reports', 'update')
 st.session_state['pages'] = PAGES
 
 # Only this program's own window may drive it: Streamlit trusts any page on this computer ("localhost" on any port),
@@ -33,7 +37,9 @@ _port = st.get_option('server.port')
 if _origin and _origin not in (f'http://127.0.0.1:{_port}', f'http://localhost:{_port}'):
     st.error('This program only answers its own window.')
     st.stop()
-page = st.navigation(list(PAGES.values()), position='top')
+# the pages you use for picking stay in the top bar ("How to use it" second, so always in view); your own data is one menu
+page = st.navigation({'': [p for k, p in PAGES.items() if k not in MY_DATA],
+                      'My data': [PAGES[k] for k in MY_DATA]}, position='top')
 
 # after the data folder moved, nothing may be written to the old one: every page waits for the restart
 if core.RESTART_NEEDED:
@@ -52,7 +58,7 @@ with st.sidebar:
     # the margin of safety is set on the Candidates page, next to the prices it changes
     st.markdown('### Monthly check')
     st.caption(f"Keeps the companies you follow up to date. Next: when you open the program on or after "
-               f"{core.next_check_date():%d %b %Y}. You can also run it on the Update data page.")
+               f"{core.next_check_date():%d %b %Y}. You can also run it now: My data, Update data, Refresh now.")
     st.divider()
     update.quit_button('quit_side')
     st.caption(core.DISCLAIMER)
@@ -119,6 +125,12 @@ if not st.session_state.get('started'):
     st.session_state['started'] = True
     core.backup_if_due()
     version = core.program_version()
+    before = core.settings()
+    # for Start here: when you were last here, and whether the program was updated since
+    st.session_state['last_seen'] = before.get('last_seen')
+    if before.get('program_version') and before['program_version'] != version:
+        st.session_state['updated_from'] = before['program_version']
+    core.save_setting(last_seen=date.today().isoformat())
     import jobs
     if core.first_download_needed() and not jobs.running() and not os.environ.get('STOCK_NO_FIRST_DOWNLOAD'):
         jobs.start('first')  # it reads your own reports in too

@@ -60,6 +60,11 @@ def render():
     else:
         st.info('No entries yet.')
     claims_part()
+    from views import exit_review
+    try:
+        exit_review.render()
+    except Exception as e:  # your broker records unreadable: the rest of the journal still works
+        st.warning(f'The DeGiro exit review could not be shown ({e}).')
     cands = d['candidates']
     if cands:
         st.divider()

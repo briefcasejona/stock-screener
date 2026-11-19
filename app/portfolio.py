@@ -281,6 +281,9 @@ def remove(state, trade_id):
     t = next(t for t in state['trades'] if t['id'] == trade_id)
     if not removable(t):
         raise ValueError(f'Only a trade recorded in the last {UNDO_HOURS} hours can be removed.')
+    if t['kind'] in ('buy', 'index') and any(x['kind'] == 'sell' and x['ticker'] == t['ticker'] and x['date'] >= t['date']
+                                             and is_paper(x) == is_paper(t) for x in state['trades']):
+        raise ValueError('A sale of these shares is recorded after this buy: remove the sale first.')
     state['trades'] = [x for x in state['trades'] if x['id'] != trade_id]
     # it stays listed as removed, and the journal says so: removing a losing trade can't go unnoticed
     state.setdefault('removed', []).append({**t, 'removed': datetime.now().isoformat(timespec='seconds')})
@@ -383,7 +386,7 @@ def replay(state, mk, until, paper=True):
             money_in += t['amount_eur']
             put_in[t['ticker']] = put_in.get(t['ticker'], 0) + t['amount_eur']
         else:
-            picks.units[s] -= t['units']
+            picks.units[s] = picks.units.get(s, 0) - t['units']  # never a crash on an old, inconsistent file
             picks.cash += t['amount_eur']
             # the shadow sells index fund shares for the same euros
             want = (t['amount_eur'] + fee) / idx_eur
@@ -443,6 +446,54 @@ def timeline(state, mk, points=60, paper=True):
         p, s, _, m, _ = replay(state, mk, d.isoformat(), paper)
         out.append((d.isoformat(), p.value(d.isoformat()), s.value(d.isoformat()), m))
     return out
+
+
+def imported_index_buys(state):
+    """Your index fund buys read in from your broker records (Portfolio page) that are not on the scoreboard yet, so
+    you don't type your monthly buy twice. Returns (buys, other index funds bought). A buy you already recorded by
+    hand (same fund, within 3 days, amount within 2%) counts as on the scoreboard."""
+    import holdings as H
+    h = H.load()
+    sym = state['rules']['index_symbol']
+    linked = {t.get('import_id') for t in state['trades']}
+    by_hand = [t for t in state['trades'] if t['kind'] == 'index' and not t.get('import_id')]
+    found, other = [], set()
+    for e in h['events']:
+        if e['kind'] != 'buy' or not e.get('isin') or e['id'] in linked:
+            continue
+        sec = h['securities'].get(e['isin']) or {}
+        if sec.get('symbol') != sym:
+            if sec.get('kind') == 'index':
+                other.add(sec.get('symbol') or sec.get('name') or e['isin'])
+            continue
+        amount = -H.eur_of(e)
+        if amount <= 0:
+            continue
+        d = date.fromisoformat(e['date'])
+        if any(abs((date.fromisoformat(t['date']) - d).days) <= 3 and abs(t['amount_eur'] - amount) <= 0.02 * amount
+               for t in by_hand):
+            continue
+        found.append({'event': e, 'amount_eur': round(amount, 2), 'costs_eur': round(e.get('costs_eur') or 0.0, 2)})
+    return found, other
+
+
+def add_imported_index_buys(state, buys):
+    """Put index fund buys from your broker records on the scoreboard, with the units, price and costs your broker
+    reported. Not held to the BACKDATE_DAYS limit: that limit stops hindsight, and a broker's own record of
+    an index fund buy can't be chosen with hindsight."""
+    r = state['rules']
+    for b in buys:
+        e = b['event']
+        if not e.get('units'):
+            continue
+        state['trades'].append({
+            'id': uuid.uuid4().hex[:10], 'recorded': datetime.now().isoformat(timespec='seconds'), 'date': e['date'],
+            'kind': 'index', 'ticker': 'INDEX', 'company': r['index_name'], 'symbol': r['index_symbol'],
+            'currency': e.get('currency') or r.get('index_currency', 'EUR'), 'price': e.get('price'),
+            'eur_per_unit': (b['amount_eur'] - b['costs_eur']) / e['units'], 'why': f"From your {e['broker']} records",
+            'amount_eur': b['amount_eur'], 'costs_eur': b['costs_eur'], 'units': e['units'], 'import_id': e['id']})
+    save(state)
+    return len(buys)
 
 
 def imported_size():

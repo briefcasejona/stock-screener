@@ -85,3 +85,14 @@ hr { opacity: 0.6; }
   [data-testid="stDataFrame"] { max-width: 100%; }
   [data-testid="stButtonGroup"] > div { flex-wrap: wrap; }
 }
+
+/* Touch screens (a tablet, a touch laptop): every button, tab and choice at least 44 px tall, Apple's minimum for a
+   finger (the 19 Nov 2026 review: 13-16 px targets were hard to hit). A mouse keeps the compact look. */
+@media (pointer: coarse) {
+  button, [role="tab"], [data-baseweb="select"] > div, [data-testid="stButtonGroup"] button,
+  [data-testid="stExpandSidebarButton"], [data-testid="stCheckbox"] label, [data-testid="stRadio"] label {
+    min-height: 44px !important;
+    min-width: 44px;
+  }
+  [data-testid="stCheckbox"] label, [data-testid="stRadio"] label { align-items: center; }
+}

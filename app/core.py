@@ -210,7 +210,8 @@ def position(cand, m):
 
 
 # your journal decisions; "Pass" was renamed "No" (one word for one thing: "Pass" also means a passed check)
-DECISIONS = ('Buy', 'Wait', 'No', 'Sell', 'Still researching')
+DECISIONS = ('Buy', 'Wait', 'No', 'Sell', 'Still researching', 'Keep', 'Trim')  # Keep, Trim: the DeGiro exit review
+PICK_DECISIONS = DECISIONS[:5]  # the choices on a candidate
 OLD_WORDS = {'Pass': 'No', 'Deep dive': 'Still researching'}
 
 

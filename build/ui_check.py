@@ -13,7 +13,7 @@ import urllib.request
 
 from playwright.sync_api import sync_playwright
 
-PAGES = {'candidates': 'Candidates', 'scoreboard': 'Scoreboard', 'portfolio': 'Portfolio', 'screener': 'Screener', 'course': 'Course', 'journal': 'Journal', 'reports': 'Add a report',
+PAGES = {'home': 'Start here', 'candidates': 'Candidates', 'scoreboard': 'Scoreboard', 'portfolio': 'Portfolio', 'screener': 'Screener', 'course': 'Course', 'journal': 'Journal', 'reports': 'Add a report',
          'update': 'Update data', 'guide': 'How to use it'}
 
 
@@ -51,12 +51,16 @@ def main():
             page = browser.new_page(viewport={'width': 1400, 'height': 1000})
             page.on('pageerror', lambda e: problems.append(f'javascript error: {e}'))
             for slug, title in PAGES.items():
-                page.goto(f'{url}/' + ('' if slug == 'candidates' else slug))  # the first page lives at /
+                page.goto(f'{url}/' + ('' if slug == 'home' else slug))  # the first page lives at /
                 page.wait_for_selector('[data-testid="stSidebar"]', state='attached', timeout=120000)
                 page.wait_for_timeout(1500)
                 page.wait_for_function('() => !document.querySelector(\'[data-testid="stStatusWidget"]\')',
                                        timeout=120000)
                 page.wait_for_timeout(800)
+                try:  # the first page also runs the start-up work, so its heading can take longer
+                    page.wait_for_selector('h1', timeout=60000)
+                except Exception:
+                    pass
                 errors = [e.inner_text()[:500] for e in page.locator('[data-testid="stException"]').all()]
                 heading = page.locator('h1').first.inner_text(timeout=10000) if page.locator('h1').count() else ''
                 print(f'{slug}: heading "{heading}", errors {len(errors)}')

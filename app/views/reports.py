@@ -471,6 +471,16 @@ def render():
     with t[4]:
         own = core.own_reports()
         if own:
-            st.dataframe(own, hide_index=True)
+            st.dataframe([{k: v for k, v in r.items() if not k.startswith('_')} for r in own], hide_index=True)
+            with st.expander('Remove a report', icon=':material/delete:'):
+                st.caption('For a report read in wrongly: remove it and add it again. The company\'s figures change '
+                           'with the next refresh (Update data page). A safety backup is made first.')
+                i = st.selectbox('Report', range(len(own)), index=None, placeholder='Pick one',
+                                 format_func=lambda i: f"{own[i]['Company']}, {own[i]['Period end']}, {own[i]['Kind']}")
+                if i is not None and st.button('Remove it', key='rm_report'):
+                    core.save_backup('before removing a report')
+                    os.remove(own[i]['_path'])
+                    st.toast(f"Removed: {own[i]['Company']}, {own[i]['Period end']}.")
+                    st.rerun()
         else:
-            st.caption('None yet.')
+            st.caption('No reports added yet. The reports you add on the other tabs are listed here.')

@@ -102,6 +102,10 @@ def headline(s, mk):
 def split_part(s, mk, rows, cash_eur, total):
     idx = sum(r['Value'] for r in rows if r['_kind'] == 'index')
     stk = sum(r['Value'] for r in rows if r['_kind'] != 'index')
+    if cash_eur < -0.005 or total <= 0:
+        st.warning(f"Your cash adds up to {EUR(cash_eur)}, below zero: the records probably miss a deposit or one of "
+                   "your broker's files. The shares below (over 100% or negative) are not reliable until you read in "
+                   'the rest.', icon=':material/warning:')
     a, b, c = st.columns(3)
     a.metric('Funds (ETFs)', f'{idx / total:.0%}' if total else 'n/a')
     b.metric('Single stocks', f'{stk / total:.0%}' if total else 'n/a')

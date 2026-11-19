@@ -510,7 +510,7 @@ def own_reports():
         d = json.load(open(p, encoding='utf-8', errors='replace'))
         out.append({'Company': d['ticker'], 'Period end': d['period_end'],
                     'Kind': 'Quarterly / half-year' if d['kind'] == 'interim' else 'Annual, ' + d['kind'].upper(),
-                    'File': d['source_file'], 'Added': d['added'], 'Figures': len(d['facts'])})
+                    'File': d['source_file'], 'Added': d['added'], 'Figures': len(d['facts']), '_path': p})
     return out
 
 

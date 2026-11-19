@@ -7,6 +7,7 @@ Run: python3 -I code/build_screen_data.py
 import csv
 import json
 import os
+import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -68,10 +69,11 @@ def main():
                 row[k] = r[k]
             out.append(row)
     # one row per company: two share classes of one company (GOOGL and GOOG, FOXA and FOX) have the same figures, so
-    # one is kept, the longer ticker (in these pairs, the class A shares)
+    # one is kept: the class A shares
+    base = lambda name: re.sub(r'\s*\(Class [A-Z]\)$', '', name)
     seen, kept = set(), []
-    for o in sorted(out, key=lambda o: (o['company'], -len(o['ticker']), o['ticker'])):
-        k = (o['company'], o['region'], o['revenue_growth'], o['roic_median'])
+    for o in sorted(out, key=lambda o: ('(Class A)' not in o['company'], o['ticker'])):
+        k = (base(o['company']), o['region'], o['revenue_growth'], o['roic_median'])
         if k not in seen:
             seen.add(k)
             kept.append(o)

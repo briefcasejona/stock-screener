@@ -134,11 +134,13 @@ def chart(state, mk, paper):
     pal = {'dark': ['#0a84ff', '#30d158', '#8e8e93'], 'light': ['#0071e3', '#248a3d', '#8e8e93']}
     colors = pal['dark' if st.context.theme.type == 'dark' else 'light']
     st.altair_chart(alt.Chart(pd.DataFrame(rows)).mark_line(strokeWidth=2.5).encode(
-        x=alt.X('Date:T', title=None), y=alt.Y('Value:Q', title=None, axis=alt.Axis(format=',.0f')),
+        x=alt.X('Date:T', title=None, axis=alt.Axis(format='%d %b %Y', tickMinStep=86400000, labelAngle=0,
+                                                     labelOverlap='greedy')),  # days, never hours y=alt.Y('Value:Q', title=None, axis=alt.Axis(format=',.0f')),
         color=alt.Color('Line:N', scale=alt.Scale(domain=['Your picks', 'Index fund, same money', 'Money put in'],
-                                                  range=colors), legend=alt.Legend(orient='top', title=None)),
+                                                  range=colors), legend=alt.Legend(orient='top', title=None, columns=3,
+                                                                                      labelLimit=0)),
         strokeDash=alt.condition(alt.datum.Line == 'Money put in', alt.value([4, 4]), alt.value([1, 0])),
-        tooltip=['Date:T', 'Line:N', alt.Tooltip('Value:Q', format=',.0f')]).properties(height=280),
+        tooltip=[alt.Tooltip('Date:T', format='%d %b %Y'), 'Line:N', alt.Tooltip('Value:Q', format=',.0f')]).properties(height=280),
         use_container_width=True)
 
 

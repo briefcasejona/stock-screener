@@ -344,8 +344,9 @@ def parse_degiro_portfolio(text):
 # ---------- reading a file in ----------
 
 def read_in(s, broker, text, source):
-    """Parse, add new records, update what each holding is, and check against the statement in the same file.
-    Returns (new records, differences)."""
+    """Parse, add new records, update what each holding is, and check against the statement in the same file, or
+    against the last statement read in when new records arrive. Returns (new records, differences: a list, None when
+    there was nothing to check, or 'later' for a statement that came before any records)."""
     statement, securities, events = None, {}, []
     if broker == 'IBKR':
         events, statement, securities = parse_ibkr(text)
@@ -373,7 +374,15 @@ def read_in(s, broker, text, source):
             found = H.find_symbol(i)
             if found:
                 cur['symbol'] = found[0][0]
-    diffs = H.reconcile(s, broker, statement) if statement and statement.get('date') else None
+    if statement and statement.get('date'):
+        s.setdefault('statements', {})[broker] = statement  # kept, so later records are checked against it too
+    statement = (s.get('statements') or {}).get(broker) if (statement or new) else None
+    if statement and not any(e.get('broker') == broker for e in s['events']):
+        diffs = 'later'  # a statement before any records: nothing to check yet
+    elif statement and statement.get('date'):
+        diffs = H.reconcile(s, broker, statement)
+    else:
+        diffs = None
     H.save(s)
     return new, diffs
 
@@ -399,7 +408,10 @@ def render(s):
             except ValueError as e:
                 notes.append(('error', f'{name}: {e}'))
                 continue
-            if diffs is None:
+            if diffs == 'later':
+                notes.append(('success', f'{name}: kept. It is the check: read in your Transactions and Account files '
+                                         'too, and the records are checked against it as soon as they are in.'))
+            elif diffs is None:
                 notes.append(('success', f'{name}: {new} new records.'))
             elif not diffs:
                 notes.append(('success', f'{name}: {new} new records. Matches {broker}\'s own figures to the cent and '

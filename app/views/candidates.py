@@ -212,8 +212,35 @@ def journal_part(c, entries, masked=False):
                 st.caption(core.md(f"What would change my mind: {e['change_mind']}"))
     if not mine:
         st.caption('No entries yet.')
+    elif not masked:
+        st.download_button('Download your work on this company', company_notes(c, mine),
+                           file_name=f"{c['ticker']} notes {date.today()}.md", mime='text/markdown',
+                           icon=':material/download:', key=f"dl_{c['ticker']}",
+                           help='Your estimate, your claims and the journal for this company, as a text file.')
     journal_form(c)
     claim_form(c)
+
+
+def company_notes(c, entries):
+    """Your work on one company as a Markdown text: estimate, claims, journal (newest first)."""
+    import claims
+    out = [f"# {c['company']} ({c['ticker']})", '', f"Written out on {date.today()}. Educational, not advice.", '']
+    mine = commit.get(c['ticker'])
+    if mine:
+        out += ['## Your estimate', '', f"{mine['date']}: growth {mine['growth']:.1f}% a year, one share worth "
+                f"{core.money(mine['value'], mine['currency'])}. {mine['why']}", '']
+    cl = [x for x in claims.load() if x['ticker'] == c['ticker']]
+    if cl:
+        out += ['## Your claims', ''] + [
+            f"- {x['made']}: {claims.describe(x)} ({x['confidence']}% sure). "
+            + ('Waiting for the figures.' if x.get('outcome') is None else 'Came true.' if x['outcome'] else 'Did not.')
+            + f" Why: {x['why']}" for x in cl] + ['']
+    out += ['## Journal', '']
+    for e in entries:
+        out += [f"### {e['date']} · {core.word(e.get('decision'))} · {e.get('author', '')}", '', e['why'], '']
+        if e.get('change_mind'):
+            out += [f"What would change my mind: {e['change_mind']}", '']
+    return '\n'.join(out)
 
 
 def claim_form(c, key=''):

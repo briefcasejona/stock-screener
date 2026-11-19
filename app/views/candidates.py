@@ -72,7 +72,8 @@ def growth_form(c, scen, entry):
                 'normalised figure.')
     g = {s['scenario']: s['growth'] for s in scen}
     lo, hi = -10.0, 40.0
-    start = {k: round(g.get(k, dflt) * 100, 1) for k, dflt in (('Bear', 0.03), ('Base', 0.06), ('Bull', 0.09))}
+    # two decimals: one would turn a starting 3.25% into 3.2% and move a value you did not touch
+    start = {k: round(g.get(k, dflt) * 100, 2) for k, dflt in (('Bear', 0.03), ('Base', 0.06), ('Bull', 0.09))}
     if any(not lo <= v <= hi for v in start.values()):
         st.caption(f'A saved rate is outside {lo:.0f}% to +{hi:.0f}% a year, so the boxes start at the nearest end.')
     start = {k: min(max(v, lo), hi) for k, v in start.items()}
@@ -91,6 +92,15 @@ def growth_form(c, scen, entry):
     if ok:
         if not bear <= base <= bull:
             st.error('Bear should be at or below base, and base at or below bull.')
+            return
+        hi_key = f"hi_ok_{c['ticker']}_{base}"
+        if base > 15 and not st.session_state.get(hi_key):  # an outside view before a bold base case counts
+            st.session_state[hi_key] = True
+            mine = commit.get(c['ticker'])
+            st.warning(f"A base case of {base:.1f}% a year for ten years: very few companies manage that (Chan, Karceski "
+                       'and Lakonishok, 2003, found fast growth rarely lasts). '
+                       + (f"Your own estimate, written down on {mine['date']}, was {mine['growth']:.1f}%. " if mine else '')
+                       + 'Press Save again to keep it.', icon=':material/trending_up:')
             return
         with st.spinner('Re-running the analysis (downloads the latest price)...'):
             _, err = core.wl('set', ticker=c['ticker'], bear=bear / 100, base=base / 100, bull=bull / 100,
@@ -202,7 +212,7 @@ def journal_part(c, entries, masked=False):
         with st.container(border=True):
             dec = core.word(e.get('decision'))
             hide = masked and e.get('author') != 'You'
-            price = '' if e.get('price') is None else f" · price {core.money(e['price'], e['currency'])}"
+            price = '' if e.get('price') is None else f" · price {core.price_text(e)}"
             st.markdown(core.md(f"**{e['date']}** · :{BADGE.get(dec, 'gray')}-badge[{dec}]{price} · {e.get('author', '')}"))
             if hide:
                 st.caption('A note from the program. Shown in full once you have locked in your own estimate.')
@@ -303,6 +313,7 @@ def journal_form(c, key=''):
                 return
             core.add_journal_entry({'date': date.today().isoformat(), 'ticker': c['ticker'], 'company': c['company'],
                                     'price': c['price'], 'currency': c['currency'], 'decision': dec,
+                                    'price_date': c.get('price_date', ''),  # the price can be older than today
                                     'implied_growth': c['implied_growth'], 'bear': c['bear'], 'base': c['base'],
                                     'bull': c['bull'], 'why': why.strip(), 'change_mind': change.strip(),
                                     'next_check': nxt.strip(), 'author': 'You'})
@@ -458,7 +469,12 @@ def compare(c, scen):
         st.caption('Turn your growth into a claim (Journal tab, measure "Free cash flow per share"), and the figures will '
                    'show in a year or two whether you were right. That is how guesses turn into judgement.')
     if gap is not None:
-        st.caption(f"Your value is {abs(gap):.0%} {'above' if gap >= 0 else 'below'} the program's base value. Neither "
+        now = ('' if not core.reviewed(c) else
+               f" Your growth rates now give a base value of {core.money(c['base'], c['currency'])}"
+               " (Valuation table below); this comparison stays with the program's own starting point.")
+        st.caption(core.md(f"The value you locked in on {mine['date']} is {abs(gap):.0%} "
+                   f"{'above' if gap >= 0 else 'below'} the program's starting base value of "
+                   f"{core.money(prog['value'], c['currency'])}.{now}") + " Neither "
                    'is the truth: write in the journal what you think explains the gap. Later, the figures show who '
                    'was closer.')
 
@@ -510,7 +526,7 @@ def screen_notes(c):
 
 
 def margin_control():
-    a, b = st.columns([1, 3], vertical_alignment='center')
+    a, b = st.columns([1.5, 3], vertical_alignment='center')
     m = a.segmented_control('Margin of safety', core.MARGINS, default=core.margin(), format_func=lambda v: f'{v}%',
                             key='margin_pick', required=True)
     if m != core.margin():
@@ -577,6 +593,12 @@ def render():
     memo = ss.setdefault(f"pick_cand_{ss.get('cand_gen', 0)}_{len(cands)}", {})
     sel = core.picked(ev, len(cands), default, memo)
     sel = default if sel is None else sel
+    # the tick follows the company shown: a click in a cell (or an untick) redraws the table with that row ticked, so
+    # the ticked row and the company below never disagree
+    if list(ev.selection.rows) != [sel] or list(getattr(ev.selection, 'cells', []) or []):
+        ss['cand_ticker'] = cands[sel]['ticker']
+        ss['cand_gen'] = ss.get('cand_gen', 0) + 1
+        st.rerun()
     c = cands[sel]
     ss['cand_ticker'] = c['ticker']
     entry = next((e for e in core.watchlist() if e['ticker'] == c['ticker']), None)
@@ -587,9 +609,21 @@ def render():
     a, b = st.columns([3, 1], vertical_alignment='center')
     a.caption(f"{c['ticker']} · {c.get('exchange', '')} · {c.get('region', '')} · analysed {c.get('analysed', '')} · "
               f"figures up to {c.get('figures_to', '')}")
-    if entry and b.button('Remove from list', icon=':material/remove_circle:', key=f"hide_{c['ticker']}", type='tertiary',
-                          help='Takes it off your candidates. You can put it back any time, exactly as it was.'):
-        set_hidden(c['ticker'], True)
+    ask = f"hide_ask_{c['ticker']}"
+    if entry and not st.session_state.get(ask) and b.button(
+            'Remove from list', icon=':material/remove_circle:', key=f"hide_{c['ticker']}", type='tertiary',
+            help='Takes it off your candidates. You can put it back any time, exactly as it was.'):
+        st.session_state[ask] = True  # one tap asks; a second, deliberate one removes
+        st.rerun()
+    if entry and st.session_state.get(ask):
+        b.caption(f"Remove {core.md(c['company'])}? It can be put back any time.")
+        y, n = b.columns(2)
+        if y.button('Remove', key=f"hide_yes_{c['ticker']}", type='primary'):
+            st.session_state.pop(ask, None)
+            set_hidden(c['ticker'], True)
+        if n.button('Keep', key=f"hide_no_{c['ticker']}"):
+            st.session_state.pop(ask, None)
+            st.rerun()
     screen_notes(c)
     if not committed(c, entry):
         st.metric(f"Price, {c.get('price_date', '')}", core.money(c['price'], c['currency']),
@@ -639,7 +673,8 @@ def render():
                                     'Share of value after year 10': core.pct(s['after_year_10'], 0)} for s in scen]),
                      hide_index=True)
         st.caption(f"Growth rates: {c.get('assumptions_source', '')}"
-                   f"{'' if core.reviewed(c) else ' (not reviewed by you)'}. Starting cash flow: {c.get('fcf_basis', '')}.")
+                   f"{'' if core.reviewed(c) or 'review' in c.get('assumptions_source', '') else ' (not reviewed by you)'}"
+                   f". Starting cash flow: {c.get('fcf_basis', '')}.")
         core.show_notes(c.get('notes'), st)
         sensitivity(c, scen)
     with t[1]:
@@ -650,7 +685,12 @@ def render():
                                     'Result': {'Pass': '✅ Pass', 'Fail': '❌ Fail', 'Ask why': '❓ Ask why'}.get(
                                         x['result'], '— ' + x['result'] + (
                                             f": {no_data[x['filter']]}" if x['filter'] in no_data else '')),
-                                    'Value': x['value'], 'Threshold': x['threshold'], 'Step': x['step']}
+                                    # the price check with today's figure, the same one as on the card above
+                                    'Value': (f"Implied {core.gpct(c['implied_growth'])} vs base "
+                                              + x['value'].rsplit(' vs base ', 1)[-1]
+                                              if x['filter'] == 'Reasonable price' and ' vs base ' in x['value']
+                                              and c.get('implied_growth') is not None else x['value']),
+                                    'Threshold': x['threshold'], 'Step': x['step']}
                                    for x in checks]), hide_index=True,
                      column_config={'Check': st.column_config.TextColumn(pinned=True)})
         st.caption('Six quality checks (is it a great business?) and four GARP checks (is it growing, at a reasonable '

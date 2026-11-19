@@ -250,3 +250,5 @@ def summary_part():
         st.download_button('Download the summary', st.session_state['summary_pdf'],
                            file_name=f'stock-screener-summary-{date.today()}.pdf', mime='application/pdf',
                            icon=':material/download:')
+        st.caption('To read it on your phone, save it to your Google Drive (or OneDrive, Dropbox) folder, or email it to '
+                   'yourself. Nothing is sent from the program itself.')

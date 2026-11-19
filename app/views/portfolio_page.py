@@ -92,7 +92,8 @@ def headline(s, mk):
                       'make it look better or worse than it is. Over less than a year this figure jumps around.')
         if mw['index'] is not None:
             y.metric('Same money in your index fund, per year', signed(mw['index']),
-                     f"{(mw['yours'] - mw['index']) * 100:+.1f} percentage points for you".replace('-', '−'),
+                     # an ASCII minus: Streamlit reads it to colour the delta red and point the arrow down
+                     f"{(mw['yours'] - mw['index']) * 100:+.1f} percentage points for you",
                      help='Every euro you deposited, put into your index fund on the same day instead.')
     if mw['missing']:
         st.caption('Not yet counted (no price source picked): ' + ', '.join(
@@ -160,7 +161,7 @@ def review_part(s, mk):
         if v is None:
             col.metric(label, 'n/a', help='Your records don\'t cover this period.')
         else:
-            col.metric(label, signed(v['return']), f"{EUR(v['gain'])}".replace('€-', '−€'), delta_color='normal',
+            col.metric(label, signed(v['return']), ('-' if v['gain'] < 0 else '') + EUR(abs(v['gain'])), delta_color='normal',  # "-" so it shows red
                        help=f"Worth {EUR(v['start_value'])} at the start, {EUR(v['end_value'])} at the end, "
                             f"{EUR(v['added'])} added." + (f" From your first record on {v['from']}." if v.get('from')
                                                           else ''))
@@ -260,7 +261,7 @@ def dividends_part(s, mk):
     st.subheader('Dividends')
     st.write(f'Received in the last 12 months, after dividend tax: **{EUR(got)}**.')
     if out:
-        st.dataframe(pd.DataFrame([{'Holding': o['name'], 'Pays in': ', '.join(o['months']),
+        st.dataframe(pd.DataFrame([{'Holding': name(o['name']), 'Pays in': ', '.join(o['months']),
                                     'Last 12 months per share': core.money(o['per_share_12m'], o['currency']),
                                     'On your shares now, per year': EUR(o['yearly_eur'])} for o in out]),
                      hide_index=True)
@@ -285,9 +286,11 @@ def checks_part(s):
             st.error(f"{b}: {c['differences']} difference(s) with the statement of {c['date']}. The figures above "
                      'are not reliable until this is fixed.', icon=':material/error:')
             details = c.get('details') or []
-            st.dataframe(pd.DataFrame([{'What': d['what'], 'Your records add up to': d['records'],
-                                        "The broker's statement says": d['broker'],
-                                        'Difference': d['broker'] - d['records']} for d in details]),
+            num = lambda d, v: (f"{v:,.2f} {d['what'][5:]}" if d['what'].startswith('cash ') else f'{v:,.4g} shares'
+                                ).replace('-', '−')
+            st.dataframe(pd.DataFrame([{'What': name(d['what']), 'Your records add up to': num(d, d['records']),
+                                        "The broker's statement says": num(d, d['broker']),
+                                        'Difference': num(d, d['broker'] - d['records'])} for d in details]),
                          hide_index=True)
             small = [d for d in details if d['what'].startswith('cash ') and abs(d['broker'] - d['records']) < 1]
             if small and len(small) == len(details):
@@ -333,7 +336,7 @@ def sold_part(s, mk):
     todo = [r for r in rows if not r['why']]
     if todo:
         with st.form('sold_why'):
-            pick = st.selectbox('Write down why you sold', [r['name'] for r in todo])
+            pick = st.selectbox('Write down why you sold', [r['name'] for r in todo], format_func=name)
             why = st.text_input('Why', placeholder='e.g. bought without research; freeing money for the index fund')
             saved = st.form_submit_button('Save')
             if saved and not core.words(why):

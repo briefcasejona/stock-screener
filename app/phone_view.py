@@ -133,7 +133,7 @@ def build_html(include_real=False):
             parts.append(f'<p>(a part could not be made: {e(ex)})</p>')
     parts.append(journal_part(d))
     made = datetime.now()
-    head = (f'<h1>Stock Screener</h1><p class="s">Summary made {made:%a %d %b %Y, %H:%M}. Prices are as of then. '
+    head = (f'<h1>Stock Screener</h1><p class="s">Summary made {made:%a %d %b %Y, %H:%M}. Each price is the latest the program had for that company. '
             + ('' if include_real else 'Your real holdings and amounts are left out. ')
             + f'{e(core.DISCLAIMER)}</p>')
     return f'<html><body>{head}{"".join(parts)}</body></html>'

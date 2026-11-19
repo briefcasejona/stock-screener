@@ -165,8 +165,8 @@ def render():
                                                                   'Growth price assumes')} | {'P/E': shown_as('{:.1f}')})
     # the table is keyed on the filters, so a changed filter never leaves an old row number selected; the company you
     # had open stays selected when it is still in view
-    fkey = f"scr_table_{region}_{least}_{'|'.join(pick)}_{q}"
     ss = st.session_state
+    fkey = f"scr_table_{region}_{least}_{'|'.join(pick)}_{q}_{ss.get('scr_gen', 0)}"
     keep = next((i for i, r in enumerate(view) if r['ticker'] == ss.get('scr_ticker')), None)
     ev = st.dataframe(shown, hide_index=True, on_select='rerun', selection_mode=['single-row', 'single-cell'], key=fkey,
                       selection_default={'selection': {'rows': [keep]}} if keep is not None else None,
@@ -177,13 +177,17 @@ def render():
                           'Checks': st.column_config.ProgressColumn('Checks', min_value=0, max_value=10, format='%d/10'),
                           'Data': st.column_config.TextColumn(
                               'Data', help='"check first": a figure differs from a second source, or debt, capital '
-                                           'spending or the share count looks odd. Click the row for the notes.'),
+                                           'spending or the share count looks odd. Click or tap the row for the notes.'),
                           'Notes': st.column_config.TextColumn(
-                              'Notes', help='Notes on the data. Click the row to read them in full.')})
+                              'Notes', help='Notes on the data. Click or tap the row to read them in full.')})
     i = core.picked(ev, len(view), keep, ss.setdefault(f'pick_{fkey}', {}))
     if i is None:
-        st.caption('Click a row to see its checks and analyse it.')
+        st.caption('Click or tap a row to see its checks and analyse it.')
         return
+    if list(ev.selection.rows) != [i] or list(getattr(ev.selection, 'cells', []) or []):  # the tick follows the click
+        ss['scr_ticker'] = view[i]['ticker']
+        ss['scr_gen'] = ss.get('scr_gen', 0) + 1
+        st.rerun()
     r = view[i]
     ss['scr_ticker'] = r['ticker']
     st.divider()

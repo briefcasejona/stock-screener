@@ -75,6 +75,12 @@ def set_rule(text):
 # figure names the program also has, so a write-up can put your figure next to the program's
 PROGRAM = [(('free cash flow per share', 'fcf per share', 'fcf/share'), 'fcf_per_share', '{:.2f} per share'),
            (('earnings per share', 'eps'), 'eps', '{:.2f} per share'),
+           (('free cash flow', 'fcf'), 'fcf_m', '{:,.0f} million'),
+           (('cash from operations', 'operating cash flow', 'cash flow from operations', 'operating activities'),
+            'operating_cash_flow_m', '{:,.0f} million'),
+           (('operating income', 'operating profit', 'operating result', 'ebit'), 'operating_income_m', '{:,.0f} million'),
+           (('net profit', 'net income', 'net earnings', 'profit for the year'), 'net_income_m', '{:,.0f} million'),
+           (('capital spending', 'capex', 'capital expenditure'), 'capex_m', '{:,.0f} million'),
            (('revenue', 'sales', 'turnover', 'omzet'), 'revenue_m', '{:,.0f} million'),
            (('roic', 'return on invested capital', 'return on capital'), 'roic', '{:.1%}'),
            (('gross margin',), 'gross_margin', '{:.1%}')]

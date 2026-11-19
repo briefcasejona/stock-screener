@@ -36,8 +36,9 @@ SUFFIX = {'AS': 'NL', 'DE': 'DE', 'F': 'DE', 'PA': 'FR', 'L': 'GB', 'SW': 'CH', 
           'CO': 'DK', 'OL': 'NO', 'HE': 'FI', 'BR': 'BE', 'VI': 'AT', 'LS': 'PT', 'IR': 'IE'}
 BACKDATE_DAYS = 7  # an index fund or real trade can be recorded up to a week late, never further back
 UNDO_HOURS = 24  # a trade recorded by mistake can be removed the same day; it stays listed as removed
-REAL_LOCKED = ('Real picks open up once you have finished the research course (5 write-ups of your own). Until then, '
-               'record picks on paper: the practice counts, and your real money stays in the index fund.')
+REAL_LOCKED = ('Real picks open up once you have finished the research course (the six lessons and five solo '
+               'write-ups of your own). Until then, record picks on paper: the practice counts, and your real money '
+               'stays in the index fund.')
 
 
 # ---------- the file ----------

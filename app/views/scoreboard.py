@@ -135,7 +135,8 @@ def chart(state, mk, paper):
     colors = pal['dark' if st.context.theme.type == 'dark' else 'light']
     st.altair_chart(alt.Chart(pd.DataFrame(rows)).mark_line(strokeWidth=2.5).encode(
         x=alt.X('Date:T', title=None, axis=alt.Axis(format='%d %b %Y', tickMinStep=86400000, labelAngle=0,
-                                                     labelOverlap='greedy')),  # days, never hours y=alt.Y('Value:Q', title=None, axis=alt.Axis(format=',.0f')),
+                                                     labelOverlap='greedy')),  # days, never hours
+        y=alt.Y('Value:Q', title=None, axis=alt.Axis(format=',.0f')),
         color=alt.Color('Line:N', scale=alt.Scale(domain=['Your picks', 'Index fund, same money', 'Money put in'],
                                                   range=colors), legend=alt.Legend(orient='top', title=None, columns=3,
                                                                                       labelLimit=0)),

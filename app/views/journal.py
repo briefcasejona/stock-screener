@@ -36,7 +36,7 @@ def render():
         ev = st.dataframe(pd.DataFrame([{
             'Date': e['date'], 'Company': e['company'], 'Decision': core.word(e.get('decision')), 'Why': why(e),
             'What would change my mind': e.get('change_mind', ''), 'Next check': e.get('next_check', ''),
-            'Price': '' if e.get('price') is None else core.money(e['price'], e['currency']),
+            'Price': '' if e.get('price') is None else core.price_text(e),
             'By': e.get('author', '')} for e in entries]), hide_index=True, on_select='rerun',
             selection_mode=['single-row', 'single-cell'], key=f"jr_table_{who}_{'|'.join(pick)}",
             column_config={'Company': st.column_config.TextColumn('Company', pinned=True),
@@ -48,7 +48,7 @@ def render():
             e = entries[i]
             with st.container(border=True):
                 st.markdown(f"**{core.md(e['company'])}** · {e['date']} · {core.md(core.word(e.get('decision')))}"
-                            + (f" · price {core.md(core.money(e['price'], e['currency']))}" if e.get('price') is not None
+                            + (f" · price {core.md(core.price_text(e))}" if e.get('price') is not None
                                else '') + f" · by {core.md(e.get('author', ''))}")
                 st.markdown(core.md(why(e)))
                 if e.get('change_mind'):
@@ -56,7 +56,7 @@ def render():
                 if e.get('next_check'):
                     st.markdown('**Next check:** ' + core.md(e['next_check']))
         else:
-            st.caption('Click a row to read the entry in full.')
+            st.caption('Click or tap a row to read the entry in full.')
     else:
         st.info('No entries yet.')
     claims_part()

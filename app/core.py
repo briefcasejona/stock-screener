@@ -271,6 +271,12 @@ def show_check_result(out, where):
         where.warning(md(f"{pr['ticker']}: {pr['problem']}"))
 
 
+def price_text(e):
+    """A journal entry's price, with its own date when that is not the entry's date ("€1,496 on 2026-10-19")."""
+    d = e.get('price_date')
+    return money(e['price'], e.get('currency', '')) + (f' on {d}' if d and d != e.get('date') else '')
+
+
 def money(v, cur):
     if v is None:
         return 'n/a'

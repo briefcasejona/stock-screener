@@ -187,17 +187,29 @@ def journal_part(c, entries, masked=False):
 def claim_form(c, key=''):
     """A dated claim the program checks itself once the target year's figures are in."""
     import claims
-    with st.form(f"claim_{c['ticker']}{key}", clear_on_submit=True):
+    try:
+        targets = claims.valid_targets(c['ticker'])
+    except Exception:
+        targets = []
+    if not targets:
+        st.caption(f"No claim can be made about {c['company']} now: its next fiscal years can't be told from its figures.")
+        return
+    mine = commit.get(c['ticker'])
+    n = st.session_state.get(f"claim_n_{c['ticker']}{key}", 0)
+    with st.form(f"claim_{c['ticker']}{key}_{n}", enter_to_submit=False):
         st.markdown(f"**Make a claim** about {c['company']}: something that can turn out wrong, checked by the program "
                     'against the filed figures. Say how sure you are; over time the program shows whether your 80% '
                     'claims come true about 80% of the time.')
         a, b, d = st.columns([2, 1, 1])
-        metric = a.selectbox('Measure', list(claims.METRICS), format_func=lambda k: claims.METRICS[k][0])
+        metric = a.selectbox('Measure', list(claims.METRICS), format_func=lambda k: claims.METRICS[k][0],
+                             index=list(claims.METRICS).index('fcf_ps'))
         direction = b.selectbox('Direction', ['above', 'below'], format_func=lambda k: 'at least' if k == 'above' else 'at most')
-        thr = d.number_input('% (a year for growth)', -50.0, 100.0, 8.0, 0.5)
+        # starts from your own estimate's growth, when you made one
+        thr = d.number_input('% (a year for growth)', -50.0, 100.0,
+                             float(min(max(round(mine['growth'], 1), -50.0), 100.0)) if mine else 8.0, 0.5)
         a, b = st.columns(2)
-        this_year = date.today().year
-        target = a.selectbox('By fiscal year', list(range(this_year - 1, this_year + 4)), index=2)
+        target = a.selectbox('By fiscal year', targets, index=min(1, len(targets) - 1),
+                             help='1 to 3 years after the last year with figures, and not ended yet.')
         conf = b.select_slider('How sure are you?', claims.CONFIDENCE, value=70, format_func=lambda v: f'{v}%')
         why = st.text_input('Why do you expect it? (one line)')
         if st.form_submit_button('Lock in the claim'):
@@ -209,6 +221,7 @@ def claim_form(c, key=''):
             except Exception as e:
                 st.error(f'Could not save the claim: {e}')
                 return
+            st.session_state[f"claim_n_{c['ticker']}{key}"] = n + 1
             data.changed()
             st.toast(f"Locked in: {claims.describe(cl)}.")
             st.rerun()

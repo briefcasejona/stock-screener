@@ -63,8 +63,7 @@ def internal_part(s):
 def headline(s, mk):
     mw = H.money_weighted(s, mk)
     pos, cash = H.positions(s)
-    costs = sum(p['costs_eur'] for p in pos.values()) + sum(
-        -H.eur_of(e) for e in s['events'] if e['kind'] in H.COST_KINDS)
+    costs = H.all_costs(s)
     if not mw:
         st.info('No deposits found in your records yet.')
         return
@@ -74,7 +73,8 @@ def headline(s, mk):
     b.metric('Put in from your bank', EUR(mw['put_in']),
              help='Deposits minus withdrawals. Money moving between your brokers is not counted.')
     c.metric('Gain', EUR(gain), signed(gain / mw['put_in']) if mw['put_in'] > 0 else None)
-    d.metric('All costs paid', EUR(costs), help='Broker fees and currency costs on trades, plus other broker fees.')
+    d.metric('All costs paid', EUR(costs), help='Broker fees and currency costs on trades, the commission on changing '
+                                                'money, plus other broker fees.')
     if mw['yours'] is not None:
         x, y = st.columns(2)
         x.metric('Your real return, per year', signed(mw['yours']),
@@ -212,17 +212,21 @@ def render():
                                        for r in rows if r['_units'] > 0]), hide_index=True)
     _, cash = H.positions(s)
     if cash:
-        st.caption('Cash: ' + '; '.join(f'{b} {core.money(a, c)}' for (b, c), a in sorted(cash.items())
-                                        if abs(a) >= 0.005) or 'none')
+        st.caption(core.md('Cash: ' + ('; '.join(f'{b} {core.money(a, c)}' for (b, c), a in sorted(cash.items())
+                                                 if abs(a) >= 0.005) or 'none')))
     st.divider()
     review_part(s, mk)
     st.divider()
-    b3 = H.box3_value(s, mk)
     st.subheader('For Box 3')
+    first = int(min(e['date'] for e in s['events'])[:4])
+    years = list(range(date.today().year, first - 1, -1))
+    y = st.selectbox('Tax return for the year', years, index=years.index(H.box3_year()) if H.box3_year() in years else 0,
+                     help='Your tax return asks for the value on 1 January of that year. Until June, the program '
+                          'assumes you are filling in last year\'s.')
+    b3 = H.box3_value(s, mk, year=y)
     st.write(f"On **{date.fromisoformat(b3['date']):%d %B %Y}** your investments were worth **{EUR(b3['holdings'])}** "
              f"and your cash at the brokers **{EUR(b3['cash'])}**: **{EUR(b3['total'])}** in total, both brokers "
-             'together. Your tax return asks for the value on 1 January; your brokers\' own year statements are the '
-             'official figures, this is to check them.')
+             'together. Your brokers\' own year statements are the official figures; this is to check them.')
     dividends_part(s, mk)
     sold_part(s, mk)
     st.divider()
@@ -299,14 +303,18 @@ def sold_part(s, mk):
     st.dataframe(pd.DataFrame([{'Holding': r['name'], 'Sold on': r['sold'], 'Your result': EUR(r['result_eur']),
                                 'It did since': pct(r['stock_since']), 'Index fund since': pct(r['index_since']),
                                 'So far': '' if r['stock_since'] is None or r['index_since'] is None else
-                                ('good call' if r['stock_since'] <= r['index_since'] else 'it did better'),
+                                ('too early to tell' if abs(r['stock_since'] - r['index_since']) < 0.0005 else
+                                 'good call' if r['stock_since'] < r['index_since'] else 'it did better'),
                                 'Why you sold': r['why']} for r in rows]), hide_index=True)
     todo = [r for r in rows if not r['why']]
     if todo:
         with st.form('sold_why'):
             pick = st.selectbox('Write down why you sold', [r['name'] for r in todo])
             why = st.text_input('Why', placeholder='e.g. bought without research; freeing money for the index fund')
-            if st.form_submit_button('Save') and why.strip():
+            saved = st.form_submit_button('Save')
+            if saved and not why.strip():
+                st.error('Write a line on why.')
+            if saved and why.strip():
                 r = next(r for r in todo if r['name'] == pick)
                 s['securities'][r['isin']]['sold_why'] = why.strip()
                 H.save(s)

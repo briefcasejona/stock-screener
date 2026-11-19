@@ -32,6 +32,12 @@ EXTERNAL = ('deposit', 'withdrawal')
 COST_KINDS = ('fee',)
 
 
+def all_costs(s):
+    """Every cost paid: fees and currency costs on trades, currency conversions, and other broker fees."""
+    return (sum(e.get('costs_eur') or 0.0 for e in s['events'] if e['kind'] in ('buy', 'sell', 'fx'))
+            + sum(-eur_of(e) for e in s['events'] if e['kind'] in COST_KINDS))
+
+
 # ---------- the file ----------
 
 def load():
@@ -54,11 +60,23 @@ def add_events(s, events, broker, source):
     """Add records read from a broker's file. A record already there (same broker and same `ref`) is skipped, so
     reading the same file twice, or two overlapping files, adds nothing twice. Returns how many were new."""
     seen = {(e['broker'], e['ref']) for e in s['events']}
+    # Records that can also be told apart by what they are (DeGiro's account lines, which used to carry their
+    # description in their reference, so an export in another language looked new): the same date, kind and amount
+    # as one already there counts as the same record, as often as it is already there.
+    sig = lambda e: (e['broker'], e['date'], e['kind'], tuple(sorted(e.get('cash', {}).items())))
+    have, met = {}, {}
+    for e in s['events']:
+        have[sig(e)] = have.get(sig(e), 0) + 1
     new = 0
-    for e in events:
-        e = {**e, 'broker': broker}
+    for raw in events:
+        e = {k: v for k, v in raw.items() if k != 'same_as'} | {'broker': broker}
         if (broker, e['ref']) in seen:
             continue
+        if raw.get('same_as'):
+            k = sig(e)
+            met[k] = met.get(k, 0) + 1
+            if met[k] <= have.get(k, 0):
+                continue
         seen.add((broker, e['ref']))
         e['id'] = uuid.uuid4().hex[:10]
         s['events'].append(e)
@@ -120,8 +138,9 @@ def fx_on(cur, day):
 # ---------- prices ----------
 
 def markets(s, start=None):
-    """Prices and dividends for every holding that has a Yahoo symbol, and the exchange rates needed."""
-    syms = {v['symbol'] for v in s['securities'].values() if v.get('symbol')}
+    """Prices and dividends for every holding that has a Yahoo symbol, your index fund (to compare sales with), and
+    the exchange rates needed."""
+    syms = {v['symbol'] for v in s['securities'].values() if v.get('symbol')} | {index_symbol(s)}
     first = start or min((e['date'] for e in s['events']), default=date.today().isoformat())
     begin = (date.fromisoformat(first) - timedelta(days=10)).isoformat()
     out = {'start': begin, 'm': {}, 'fx': {}}
@@ -300,8 +319,15 @@ def month_and_year(s, mk, today=None):
     return out
 
 
+def box3_year(today=None):
+    """The tax return you are probably filling in: last year's until June (it asks for 1 January of that year and
+    of this one), this year's after."""
+    today = today or date.today()
+    return today.year - 1 if today.month < 6 else today.year
+
+
 def box3_value(s, mk, year=None):
-    """Your holdings and cash on 1 January (the day Box 3 looks at), both brokers together."""
+    """Your holdings and cash on 1 January of `year` (the day Box 3 looks at), both brokers together."""
     y = year or date.today().year
     day = date(y, 1, 1).isoformat()
     hv, cv, missing = total_value(s, mk, day)

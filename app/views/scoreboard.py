@@ -27,7 +27,7 @@ def eur(v):
 
 def rules_form(state, first):
     r = state.get('rules') or P.DEFAULT_RULES
-    with st.form('rules'):
+    with st.form('rules', enter_to_submit=False):
         if first:
             st.markdown('**Write your rules down before your first pick.** They are yours to choose; the numbers filled '
                         'in are only a start (the 20% cap is the council\'s suggestion). Later changes are kept and noted '
@@ -40,24 +40,35 @@ def rules_form(state, first):
                               value='' if r['index_symbol'] in P.INDEX_CHOICES else r['index_symbol'])
         st.markdown('**Caps**')
         a, b = st.columns(2)
-        cap = a.number_input('All picks together, at most (% of your whole portfolio)', 1, 100, int(r['picking_cap']))
-        one = b.number_input('One company, at most (% of your whole portfolio)', 1, 100, int(r['company_cap']))
+        cap = a.number_input('All picks together, at most (% of your whole portfolio)', 1, 50,
+                             min(int(r['picking_cap']), 50), help='At most 50%: the index fund stays the core.')
+        one = b.number_input('One company, at most (% of your whole portfolio)', 1, 25, min(int(r['company_cap']), 25),
+                             help='At most 25%.')
         st.markdown('**Stop rule**: when do you go back to 100% index fund?')
         a, b = st.columns(2)
         years = a.number_input('Judge my picks after this many years', 1, 10, int(r['stop_years']))
-        behind = b.number_input('...and stop if they are behind the index fund by more than (percentage points)', 0, 100,
-                                int(r['stop_behind']))
+        behind = b.number_input('...and stop if they are behind the index fund by more than (percentage points)', 1, 30,
+                                min(max(int(r['stop_behind']), 1), 30),
+                                help='Between 1 and 30 points: a rule that can never fire is no rule.')
         st.markdown('**Costs** (your broker\'s; they are taken off every trade)')
         a, b, c = st.columns(3)
         fee = a.number_input('Fee per trade (€)', 0.0, 50.0, float(r['broker_fee']), 0.5)
         fx = b.number_input('Currency exchange cost (% of a non-euro trade)', 0.0, 2.0, float(r['fx_cost']), 0.05)
-        wh = c.number_input('Dividend tax kept abroad (%)', 0.0, 50.0, float(r['withholding']), 1.0,
-                            help='The US keeps 15% of dividends for Dutch residents; the Netherlands also keeps 15%. '
-                                 'You can usually set it off against your Dutch tax, but it is money that leaves the '
-                                 'portfolio, so it counts here. Your index fund\'s own taxes are in its price.')
+        by_country = c.checkbox('Dividend tax by country (estimate)', value=bool(r.get('withholding_by_country')),
+                                help='Counts only the part you can\'t set off in your Dutch tax return: nothing for '
+                                     'Dutch, US (with the W-8BEN form your broker arranges) and UK shares; for most '
+                                     'other countries the rate they keep minus 15%, which can only be reclaimed from '
+                                     'that country with paperwork. Your index fund\'s own taxes are in its price.')
+        wh = c.number_input('Otherwise: dividend tax lost (%)', 0.0, 50.0, float(r['withholding']), 1.0,
+                            help='One % for every dividend, counted as lost. Used when the box above is off, and for '
+                                 'a country the table doesn\'t know.')
         why = '' if first else st.text_input('Why are you changing them? (goes in the journal)')
         if st.form_submit_button('Save my rules', type='primary'):
             symbol = (other.strip().upper() if pick == 'Other' else pick)
+            if other.strip() and pick != 'Other' and other.strip().upper() != pick:
+                st.error('You typed a symbol, but chose a listed fund above. Choose "Another fund" to use the symbol, '
+                         'or clear it.')
+                return
             if not symbol:
                 st.error('Fill in the symbol of your index fund.')
                 return
@@ -75,8 +86,10 @@ def rules_form(state, first):
             name = P.INDEX_CHOICES.get(symbol, symbol)
             P.set_rules(state, {'index_symbol': symbol, 'index_name': name, 'index_currency': cur or 'EUR',
                                 'picking_cap': cap, 'company_cap': one, 'stop_years': years, 'stop_behind': behind,
-                                'broker_fee': fee, 'fx_cost': fx, 'withholding': wh}, why.strip())
+                                'broker_fee': fee, 'fx_cost': fx, 'withholding': wh,
+                                'withholding_by_country': by_country}, why.strip())
             data.changed()
+            st.toast('Your rules are saved, and noted in the journal.')
             st.rerun()
 
 
@@ -103,8 +116,10 @@ def headline(state, s, paper):
                  'means going back to 100% index fund.', icon=':material/flag:')
     else:
         where = ('ahead of' if s['gap_points'] >= 0 else 'behind')
-        st.markdown(f":material/flag: **Stop rule** (written {date.fromisoformat(r['written']):%d %b %Y}): on **{date.fromisoformat(s['stop_date']):%d %b %Y}** "
-                    f"({r['stop_years']} years after your first pick), if your picks are more than {r['stop_behind']} "
+        when = (f"written {date.fromisoformat(r['written']):%d %b %Y}" + (
+            f", last changed {date.fromisoformat(r['changed']):%d %b %Y}" if r.get('changed') else ''))
+        st.markdown(f":material/flag: **Stop rule** ({when}): on **{date.fromisoformat(s['stop_date']):%d %b %Y}** "
+                    f"({r['stop_years']} years after your first pick, or after the rules were written), if your picks are more than {r['stop_behind']} "
                     f"points behind the index fund, you go back to 100% index fund. Today they are "
                     f"{abs(s['gap_points']):.1f} points {where} it.")
 
@@ -127,16 +142,27 @@ def chart(state, mk, paper):
         use_container_width=True)
 
 
+@st.cache_data(ttl=15 * 60, show_spinner=False)
+def _whole(key, _state, _s):
+    return P.whole(_state, _s)
+
+
 def caps(state, s, paper):
     r = state['rules']
     st.markdown('**Caps**')
-    st.write(f"All {'paper' if paper else 'real'} picks together: **{s['picks_share']:.1%}** of your portfolio ({eur(s['total'])}), cap "
-             f"{r['picking_cap']}%.")
-    st.progress(min(s['picks_share'] / (r['picking_cap'] / 100), 1.0))
+    total, source = _whole((len(state['trades']), round(s['picks_value'], 2), date.today()), state, s)
+    if not total:
+        st.caption('The caps need the size of your whole portfolio: record your index fund buys, or read in your '
+                   'broker records on the Portfolio page.')
+        return
+    share = (s['picks_value'] - s['picks_cash']) / total
+    st.write(f"All {'paper' if paper else 'real'} picks together: **{share:.1%}** of your portfolio ({eur(total)}, "
+             f"from {source}), cap {r['picking_cap']}%.")
+    st.progress(min(share / (r['picking_cap'] / 100), 1.0))
     if s['holdings']:
         st.dataframe(pd.DataFrame([{
             'Company': h['company'], 'Shares': round(h['shares'], 4), 'Put in': eur(h['put_in']), 'Worth now': eur(h['value']),
-            'Share of portfolio': h['share'] * 100} for h in s['holdings']]), hide_index=True, use_container_width=True,
+            'Share of portfolio': h['value'] / total * 100} for h in s['holdings']]), hide_index=True, use_container_width=True,
             column_config={'Company': st.column_config.TextColumn('Company', pinned=True),
                            'Share of portfolio': st.column_config.ProgressColumn(
                                'Share of portfolio', format='%.1f%%', min_value=0, max_value=float(r['company_cap']),
@@ -145,32 +171,36 @@ def caps(state, s, paper):
 
 def record(state):
     st.subheader('Record a trade')
-    st.caption(f'Record a trade on the day you make it, or up to {P.BACKDATE_DAYS} days later; an older date would let '
-               'hindsight in. A trade dated today gets the latest price on Yahoo Finance (free, usually about 15 minutes '
-               'behind the exchange); an earlier date gets that day\'s closing price. Paper trades always use that '
-               'price, so practice can\'t pick a flattering one; for a real trade you can fill in what you paid.')
+    st.caption(f'A paper trade is dated today, at the latest price on Yahoo Finance (free, usually about 15 minutes behind '
+               f'the exchange): practice can\'t pick a flattering day or price. An index fund or real trade can be '
+               f'recorded up to {P.BACKDATE_DAYS} days late (that day\'s closing price), and for a real trade you can fill '
+               'in what you paid.')
     t1, t2, t3 = st.tabs(['Index fund', 'Buy a candidate', 'Sell'])
     today = date.today()
     lo = today - timedelta(days=P.BACKDATE_DAYS)
-    with t1, st.form('index_buy', clear_on_submit=True):
+    n = st.session_state.get('trade_form_n', 0)  # a fresh form after each recorded trade; a refused one keeps its text
+    with t1, st.form(f'index_buy_{n}', enter_to_submit=False):
         st.write(f"Your monthly buy of {state['rules']['index_symbol']}: the default for every month's money.")
         a, b = st.columns(2)
         amount = a.number_input('Amount, costs included (€)', 1.0, 1e7, 1000.0, 50.0)
         day = b.date_input('Date', today, min_value=lo, max_value=today, format='DD-MM-YYYY')
         if st.form_submit_button('Record the index fund buy', type='primary'):
-            do(lambda: P.new_trade(state, 'index', day, amount=amount), 'Recorded.')
+            do(lambda c: P.new_trade(state, 'index', day, amount=amount, confirm=c), 'Recorded.', 'index')
     cands = data.dashboard()['candidates']
     with t2:
         if not cands:
             st.info('Only companies you analysed can be bought here: analyse one on the Screener page first.')
         else:
-            with st.form('pick_buy', clear_on_submit=True):
+            with st.form(f'pick_buy_{n}', enter_to_submit=False):
                 names = {c['ticker']: c['company'] for c in cands}
                 cand = {c['ticker']: c for c in cands}
-                tk = st.selectbox('Company (from your candidates)', list(names), format_func=names.get)
+                focus = st.session_state.get('cand_ticker')
+                tk = st.selectbox('Company (from your candidates)', list(names), format_func=names.get,
+                                  index=list(names).index(focus) if focus in names else 0)
                 a, b, c = st.columns(3)
                 amount = a.number_input('Amount, costs included (€)', 1.0, 1e7, 500.0, 50.0)
-                day = b.date_input('Date', today, min_value=lo, max_value=today, format='DD-MM-YYYY', key='bd')
+                day = b.date_input('Date (real trades only; paper is today)', today, min_value=lo, max_value=today,
+                                   format='DD-MM-YYYY', key=f'bd_{n}')
                 price = c.number_input('Price you paid per share (real trades only, optional)', 0.0, 1e7, 0.0)
                 why = st.text_input('Why this company, at this price? (one line, goes in the journal)')
                 unlocked = bool(state['rules'].get('real_unlocked'))
@@ -182,12 +212,12 @@ def record(state):
                     if not why.strip():
                         st.error('Write one line on why. It is the line you will check yourself against later.')
                     else:
-                        do(lambda: P.new_trade(state, 'buy', day, amount=amount, ticker=tk, company=names[tk],
-                                               symbol=symbol_of(tk), price=price or None, why=why.strip(),
-                                               snapshot={k: cand[tk].get(k) for k in
-                                                         ('implied_growth', 'bear', 'base', 'bull')},
-                                               paper=kind == 'Paper'),
-                           'Recorded, and noted in the journal.')
+                        do(lambda c: P.new_trade(state, 'buy', today if kind == 'Paper' else day, amount=amount,
+                                                 ticker=tk, company=names[tk], symbol=symbol_of(tk), price=price or None,
+                                                 why=why.strip(), snapshot={k: cand[tk].get(k) for k in
+                                                                            ('implied_growth', 'bear', 'base', 'bull')},
+                                                 paper=kind == 'Paper', confirm=c),
+                           'Recorded, and noted in the journal.', 'buy')
     held = {}  # (ticker, paper): a trade of it
     for t in state['trades']:
         if t['kind'] != 'index':
@@ -197,13 +227,15 @@ def record(state):
         if not held:
             st.info('Nothing to sell.')
         else:
-            with st.form('pick_sell', clear_on_submit=True):
+            with st.form(f'pick_sell_{n}', enter_to_submit=False):
                 key = st.selectbox('Company', list(held), format_func=lambda k: held[k]['company']
                                    + (' (paper)' if k[1] else ' (real)'))
                 tk, on_paper = key
                 a, b, c = st.columns(3)
                 units = a.number_input('Shares to sell', 0.0, 1e9, 0.0, help='Fractions are fine.')
-                day = b.date_input('Date', today, min_value=lo, max_value=today, format='DD-MM-YYYY', key='sd')
+                every = a.checkbox('Sell all shares')
+                day = b.date_input('Date (real trades only; paper is today)', today, min_value=lo, max_value=today,
+                                   format='DD-MM-YYYY', key=f'sd_{n}')
                 price = c.number_input('Price you got per share (real trades only, optional)', 0.0, 1e7, 0.0)
                 why = st.text_input('Why sell? (one line, goes in the journal)')
                 if st.form_submit_button('Record the sale', type='primary'):
@@ -211,22 +243,30 @@ def record(state):
                         st.error('Write one line on why.')
                     else:
                         t = held[key]
-                        do(lambda: P.new_trade(state, 'sell', day, units=units, ticker=tk, company=t['company'],
-                                               symbol=t['symbol'], price=price or None, why=why.strip(),
-                                               paper=on_paper),
-                           'Recorded, and noted in the journal.')
+                        do(lambda c: P.new_trade(state, 'sell', today if on_paper else day, units=units, ticker=tk,
+                                                 company=t['company'], symbol=t['symbol'], price=price or None,
+                                                 why=why.strip(), paper=on_paper, confirm=c, sell_all=every),
+                           'Recorded, and noted in the journal.', 'sell')
 
 
-def do(fn, ok):
+def do(fn, ok, kind):
+    """Record a trade. When the same trade was recorded minutes ago, it asks first (a second press records it)."""
+    ss = st.session_state
+    confirm = ss.pop(f'dup_ok_{kind}', False)
     try:
         with st.spinner('Getting the price...'):
-            fn()
+            fn(confirm)
+    except P.Duplicate as e:
+        st.warning(f'{e} Press the button again to record it a second time.')
+        ss[f'dup_ok_{kind}'] = True
+        return
     except ValueError as e:
         st.error(str(e))
         return
     except Exception as e:
         st.error(f'Could not record it: {e}')
         return
+    ss['trade_form_n'] = ss.get('trade_form_n', 0) + 1
     data.changed()
     st.toast(ok)
     st.rerun()
@@ -255,6 +295,14 @@ def trades(state):
                 P.remove(state, pick)
                 data.changed()
                 st.rerun()
+    if state.get('removed'):
+        with st.expander(f"Removed trades ({len(state['removed'])})"):
+            st.caption('Kept here and in the journal, so removing a trade can\'t quietly improve the score.')
+            st.dataframe(pd.DataFrame([{'Removed': t['removed'][:16].replace('T', ' '), 'Date': t['date'],
+                                        'What': {'index': 'Index fund buy', 'buy': 'Buy', 'sell': 'Sell'}[t['kind']]
+                                        + (' (paper)' if P.is_paper(t) else ''), 'Company': t['company'],
+                                        'Euros': f"€{t['amount_eur']:,.2f}"} for t in reversed(state['removed'])]),
+                         hide_index=True, use_container_width=True)
 
 
 @st.cache_data(ttl=15 * 60, show_spinner=False)
@@ -275,7 +323,8 @@ def passes(state):
                    'was a good call. Prices only, in euros, since the day of your "No".')
         st.dataframe(pd.DataFrame([{'Company': r['company'], 'Said no on': r['date'], 'The company since': r['stock'] * 100,
                                     'Your index fund since': r['index'] * 100,
-                                    'Verdict so far': 'good call' if r['stock'] <= r['index'] else 'it did better'}
+                                    'Verdict so far': 'too early to tell' if abs(r['stock'] - r['index']) < 0.0005
+                                    else 'good call' if r['stock'] < r['index'] else 'it did better'}
                                    for r in no]), hide_index=True, use_container_width=True,
                      column_config={'The company since': pct, 'Your index fund since': pct})
     if wait:
@@ -288,14 +337,15 @@ def passes(state):
                                     'The company since': r['stock'] * 100, 'Your index fund since': r['index'] * 100,
                                     'Buy-below then': core.money(r['buy_below'], r['currency']) if r['buy_below'] else '',
                                     'Price reached it': {True: 'yes', False: 'not yet', None: ''}[r['reached']],
-                                    'So far': 'waiting cost you' if r['stock'] > r['index'] else 'waiting was fine'}
+                                    'So far': 'too early to tell' if abs(r['stock'] - r['index']) < 0.0005
+                                    else 'waiting cost you' if r['stock'] > r['index'] else 'waiting was fine'}
                                    for r in wait]), hide_index=True, use_container_width=True,
                      column_config={'The company since': pct, 'Your index fund since': pct})
         ahead = sum(r['stock'] > r['index'] for r in wait)
         if len(wait) >= 5 and ahead / len(wait) >= 0.7:
             st.info(f'{ahead} of the {len(wait)} companies you waited on did better than your index fund. Your margin '
                     'of safety may be too strict for the quality of companies you pick; consider a smaller one (on the '
-                    'left) for wide-moat companies. A few months say little: look again after a year.')
+                    'Candidates page) for wide-moat companies. A few months say little: look again after a year.')
 
 
 def render():

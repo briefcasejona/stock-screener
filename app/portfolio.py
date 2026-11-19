@@ -25,9 +25,17 @@ INDEX_CHOICES = {
 }
 DEFAULT_RULES = {'index_symbol': 'VWCE.DE', 'index_name': INDEX_CHOICES['VWCE.DE'], 'index_currency': 'EUR',
                  'picking_cap': 20, 'company_cap': 10, 'stop_years': 3, 'stop_behind': 5,
-                 'broker_fee': 3.0, 'fx_cost': 0.25, 'withholding': 15}
-BACKDATE_DAYS = 7  # a trade can be recorded up to a week late, never further back: no picking with hindsight
-UNDO_HOURS = 24  # a trade recorded by mistake can be removed the same day; after that it stays
+                 'broker_fee': 3.0, 'fx_cost': 0.25, 'withholding': 15, 'withholding_by_country': True}
+# An estimate of the dividend tax a country keeps from a Dutch resident that you can't set off in your Dutch tax
+# return: the usual rate kept minus the 15% treaty rate (the part above 15% can only be reclaimed from that country
+# with paperwork, so it counts as lost here). Dutch and US dividend tax (US: 15% with the W-8BEN form your broker
+# arranges) can be set off, so they are not a cost. Used when "by country" is on; your own % otherwise.
+WITHHOLDING = {'US': 0, 'NL': 0, 'GB': 0, 'IE': 10, 'FR': 10, 'DE': 11.375, 'CH': 20, 'IT': 11, 'ES': 4, 'SE': 15,
+               'DK': 12, 'NO': 10, 'FI': 20, 'BE': 15, 'AT': 12.5, 'PT': 10}
+SUFFIX = {'AS': 'NL', 'DE': 'DE', 'F': 'DE', 'PA': 'FR', 'L': 'GB', 'SW': 'CH', 'MI': 'IT', 'MC': 'ES', 'ST': 'SE',
+          'CO': 'DK', 'OL': 'NO', 'HE': 'FI', 'BR': 'BE', 'VI': 'AT', 'LS': 'PT', 'IR': 'IE'}
+BACKDATE_DAYS = 7  # an index fund or real trade can be recorded up to a week late, never further back
+UNDO_HOURS = 24  # a trade recorded by mistake can be removed the same day; it stays listed as removed
 REAL_LOCKED = ('Real picks open up once you have finished the research course (5 write-ups of your own). Until then, '
                'record picks on paper: the practice counts, and your real money stays in the index fund.')
 
@@ -39,6 +47,18 @@ def load():
         return json.load(open(PATH, encoding='utf-8', errors='replace'))
     except (OSError, ValueError):
         return {'rules': None, 'trades': [], 'rule_changes': []}
+
+
+def country(symbol):
+    """The country a Yahoo symbol trades in, from its suffix (none: the US)."""
+    return SUFFIX.get(symbol.rsplit('.', 1)[1], '') if '.' in symbol else 'US'
+
+
+def withholding(rules, symbol):
+    """% of a dividend from `symbol` that is lost to tax kept abroad."""
+    if rules.get('withholding_by_country'):
+        return WITHHOLDING.get(country(symbol), float(rules['withholding']))
+    return float(rules['withholding'])
 
 
 def save(state):
@@ -60,7 +80,14 @@ def set_rules(state, rules, why=''):
                                     f'{LABELS.get(k, k)} from {a} to {b}' for k, (a, b) in changed.items())
                                        + (f'. Why: {why}' if why else ''),
                                 'change_mind': '', 'next_check': '', 'author': 'You'})
-    state['rules'] = {**rules, 'written': old.get('written', today) if old else today}
+    else:
+        core.add_journal_entry({'date': today, 'ticker': 'RULES', 'company': 'My rules', 'price': None,
+                                'currency': 'EUR', 'decision': 'Rules written',
+                                'why': 'My scoreboard rules: ' + '; '.join(
+                                    f'{LABELS.get(k, k)} {v}' for k, v in rules.items() if k in LABELS),
+                                'change_mind': '', 'next_check': '', 'author': 'You'})
+    state['rules'] = {**rules, 'written': old.get('written', today) if old else today,
+                      'changed': today if old else None}
     save(state)
     return state
 
@@ -68,7 +95,7 @@ def set_rules(state, rules, why=''):
 LABELS = {'index_symbol': 'index fund', 'picking_cap': 'cap on all picks (%)', 'company_cap': 'cap per company (%)',
           'stop_years': 'stop rule: years', 'stop_behind': 'stop rule: points behind', 'broker_fee': 'broker fee (€)',
           'fx_cost': 'currency cost (%)', 'withholding': 'dividend tax kept abroad (%)', 'index_name': 'index fund name',
-          'index_currency': 'index fund currency'}
+          'index_currency': 'index fund currency', 'withholding_by_country': 'dividend tax by country'}
 
 
 # ---------- prices from Yahoo ----------
@@ -113,10 +140,13 @@ def on(series, day):
 
 # ---------- recording trades ----------
 
-def check_date(day):
+def check_date(day, paper=False):
     today = date.today()
     if day > today:
         return 'A trade can\'t be dated in the future.'
+    if paper and day != today:
+        return ('A paper trade is dated today, at today\'s price: with an earlier date you would already know how it '
+                'went. (Index fund and real trades can be recorded up to a week late.)')
     if day < today - timedelta(days=BACKDATE_DAYS):
         return (f'A trade can be recorded up to {BACKDATE_DAYS} days late, not more: with an older date you would '
                 'already know how it went, and the scoreboard would no longer be fair.')
@@ -166,18 +196,32 @@ def is_paper(t):
     return t['kind'] != 'index' and t.get('paper', True)
 
 
+class Duplicate(ValueError):
+    """The same trade was recorded a few minutes ago: record it again only when you mean it."""
+
+
 def new_trade(state, kind, day, amount=None, units=None, ticker=None, company=None, symbol=None, price=None, why='',
-              snapshot=None, paper=True):
-    """A buy (`amount` euros, costs included) or a sell (`units`). Returns the trade; raises ValueError with a reason
-    when it breaks a rule (the caps, the date, selling more than you have)."""
+              snapshot=None, paper=True, confirm=False, sell_all=False):
+    """A buy (`amount` euros, costs included) or a sell (`units`, or everything with `sell_all`). Returns the trade;
+    raises ValueError with a reason when it breaks a rule (the caps, the date, selling more than you have), and
+    Duplicate when the same trade was recorded in the last 10 minutes (pass confirm=True to record it anyway)."""
     rules = state['rules']
-    err = check_date(day)
+    err = check_date(day, kind != 'index' and paper)
     if err:
         raise ValueError(err)
     if kind == 'index':
         symbol, ticker, company = rules['index_symbol'], 'INDEX', rules['index_name']
     elif not paper and not rules.get('real_unlocked'):
         raise ValueError(REAL_LOCKED)
+    if not confirm:
+        recent = datetime.now() - timedelta(minutes=10)
+        for t in state['trades']:
+            if (t['kind'] == kind and t['ticker'] == ticker and t['date'] == day.isoformat()
+                    and is_paper(t) == (kind != 'index' and paper) and datetime.fromisoformat(t['recorded']) > recent
+                    and (sell_all or abs((t['amount_eur'] if kind != 'sell' else t['units'])
+                                         - float(amount if kind != 'sell' else units or 0)) < 0.005)):
+                raise Duplicate(f"You recorded the same {'sale' if kind == 'sell' else 'buy'} of {company} at "
+                                f"{t['recorded'][11:16]}. Record it a second time only if you really made two.")
     as_of = None
     if day == date.today():
         try:
@@ -206,7 +250,9 @@ def new_trade(state, kind, day, amount=None, units=None, ticker=None, company=No
             check_caps(state, t)
     else:
         held = units_held(state, ticker, day.isoformat(), paper)
-        units = float(units)
+        units = held if sell_all else float(units)
+        if held - units < 1e-6:  # what is left over by rounding is sold too
+            units = held
         if units <= 0 or units > held + 1e-9:
             raise ValueError(f'You hold {held:.4f} shares of {company}; you can sell up to that.')
         gross = units * p * eur
@@ -215,9 +261,12 @@ def new_trade(state, kind, day, amount=None, units=None, ticker=None, company=No
     state['trades'].append(t)
     save(state)
     if kind != 'index':
-        core.add_journal_entry({'date': t['date'], 'ticker': ticker, 'company': company, 'price': p, 'currency': cur,
+        late = f" on {day:%d %b %Y}" if day != date.today() else ''
+        # the journal is dated the day you wrote it; a trade recorded late says which day it was made
+        core.add_journal_entry({'date': date.today().isoformat(), 'ticker': ticker, 'company': company, 'price': p,
+                                'currency': cur,
                                 'decision': ('Bought' if kind == 'buy' else 'Sold') + (' (paper)' if paper else ''),
-                                'why': f"{'Bought' if kind == 'buy' else 'Sold'} {'on paper' if paper else 'for real'}: "
+                                'why': f"{'Bought' if kind == 'buy' else 'Sold'} {'on paper' if paper else 'for real'}{late}: "
                                        f"{t['amount_eur']:,.2f} euros ({t['units']:.4f} shares at {p:,.2f} {cur}). {why}",
                                 'change_mind': '', 'next_check': '', 'author': 'You', **(snapshot or {})})
     return t
@@ -232,12 +281,15 @@ def remove(state, trade_id):
     if not removable(t):
         raise ValueError(f'Only a trade recorded in the last {UNDO_HOURS} hours can be removed.')
     state['trades'] = [x for x in state['trades'] if x['id'] != trade_id]
+    # it stays listed as removed, and the journal says so: removing a losing trade can't go unnoticed
+    state.setdefault('removed', []).append({**t, 'removed': datetime.now().isoformat(timespec='seconds')})
     save(state)
-    if t['kind'] != 'index':
-        core.add_journal_entry({'date': date.today().isoformat(), 'ticker': t['ticker'], 'company': t['company'],
-                                'price': t['price'], 'currency': t['currency'], 'decision': 'Correction',
-                                'why': f"Removed the {t['kind']} of {t['date']} from the scoreboard (recorded by mistake).",
-                                'change_mind': '', 'next_check': '', 'author': 'You'})
+    what = {'index': 'index fund buy', 'buy': 'buy', 'sell': 'sale'}[t['kind']]
+    core.add_journal_entry({'date': date.today().isoformat(), 'ticker': t['ticker'], 'company': t['company'],
+                            'price': None, 'currency': t['currency'], 'decision': 'Correction',
+                            'why': f"Removed the {what}{' (paper)' if is_paper(t) else ''} of {t['date']} "
+                                   f"({t['amount_eur']:,.2f} euros) from the scoreboard: recorded by mistake.",
+                            'change_mind': '', 'next_check': '', 'author': 'You'})
 
 
 def units_held(state, ticker, day, paper=None):
@@ -257,22 +309,34 @@ def markets(state):
         return {}
     start = (date.fromisoformat(min(t['date'] for t in trades)) - timedelta(days=10)).isoformat()
     symbols = {t['symbol'] for t in trades} | {state['rules']['index_symbol']}
-    out = {'start': start, 'm': {}, 'fx': {}}
+    out = {'start': start, 'm': {}, 'fx': {}, 'live': {}, 'today': date.today().isoformat()}
     for s in symbols:
         out['m'][s] = market(s, start)
         cur = out['m'][s]['currency']
         if cur not in out['fx']:
             out['fx'][cur] = fx_series(cur, start)
+    # today's value uses the same latest price a trade recorded today gets, so a paper buy shows no gain or loss
+    # on the day it is made just because the closing price differs from the price it was bought at
+    for s in symbols:
+        try:
+            p, _, eur, _ = live(s)
+            out['live'][s] = p * eur
+        except Exception:
+            pass
     return out
 
 
 class Book:
     """Shares and cash of one portfolio as it grows trade by trade, with dividends paid into its cash."""
 
-    def __init__(self, mk, withholding):
-        self.mk, self.wh, self.units, self.cash = mk, withholding, {}, 0.0
+    def __init__(self, mk, rules=None):
+        """`rules`: the dividend tax kept abroad is taken off (the picks); None: nothing taken off (the index fund,
+        whose own taxes are in its price)."""
+        self.mk, self.rules, self.units, self.cash = mk, rules, {}, 0.0
 
     def eur(self, symbol, day):
+        if day == self.mk.get('today') and symbol in self.mk.get('live', {}):
+            return self.mk['live'][symbol]
         m = self.mk['m'][symbol]
         return on(m['close'], day) * on(self.mk['fx'][m['currency']], day)
 
@@ -282,7 +346,8 @@ class Book:
             m = self.mk['m'][s]
             for d, a in m['div'].items():
                 if frm < d <= to and n > 0:
-                    self.cash += n * a * on(self.mk['fx'][m['currency']], d) * (1 - self.wh / 100)
+                    wh = withholding(self.rules, s) if self.rules else 0
+                    self.cash += n * a * on(self.mk['fx'][m['currency']], d) * (1 - wh / 100)
 
     def value(self, day):
         return self.cash + sum(n * self.eur(s, day) for s, n in self.units.items() if n > 1e-12)
@@ -292,7 +357,7 @@ def replay(state, mk, until, paper=True):
     """Walk through the trades up to `until` (iso), the paper picks or the real ones (`paper`) with the index fund buys.
     Returns (picks, shadow, index, money in, per-company money in)."""
     r = state['rules']
-    picks, shadow, index = Book(mk, r['withholding']), Book(mk, 0), Book(mk, 0)
+    picks, shadow, index = Book(mk, r), Book(mk), Book(mk)
     sym = r['index_symbol']
     money_in, put_in = 0.0, {}
     last = '0000-00-00'
@@ -354,7 +419,8 @@ def score(state, mk, today=None, paper=True):
         out['shadow_return'] = sv / money_in - 1
         out['gap_points'] = (out['picks_return'] - out['shadow_return']) * 100
     if first:
-        d = date.fromisoformat(first)
+        # the clock starts at the first pick, never before the rules were written
+        d = max(date.fromisoformat(first), date.fromisoformat(r.get('written') or first))
         y = d.year + int(r['stop_years'])
         out['stop_date'] = (d.replace(year=y) if (d.month, d.day) != (2, 29) else date(y, 3, 1)).isoformat()
         out['stop_triggered'] = today >= out['stop_date'] and out.get('gap_points', 0) < -float(r['stop_behind'])
@@ -378,22 +444,49 @@ def timeline(state, mk, points=60, paper=True):
     return out
 
 
+def imported_size():
+    """What your real portfolio at your brokers is worth (Portfolio page), or None when nothing is read in."""
+    try:
+        import holdings as H
+        h = H.load()
+        if not h['events']:
+            return None
+        hv, cv, _ = H.total_value(h, H.markets(h))
+        return hv + cv
+    except Exception:
+        return None
+
+
+def whole(state, s):
+    """(size of your whole portfolio in euros, where it comes from) for the caps: the index fund buys recorded here
+    plus the picks; when none are recorded, your real portfolio read in on the Portfolio page plus the picks."""
+    if any(t['kind'] == 'index' for t in state['trades']):
+        return s['total'], 'your index fund buys recorded here'
+    size = imported_size()
+    if size:
+        return size + s['picks_value'], 'your real portfolio (Portfolio page)'
+    return None, None
+
+
 def check_caps(state, new):
     """Raise ValueError when buying `new` would put more than company_cap% of the whole portfolio in one company, or
-    more than picking_cap% in all picks together. The whole portfolio = your index fund buys + your picks."""
+    more than picking_cap% in all picks together (see whole())."""
     r = state['rules']
-    if not any(t['kind'] == 'index' for t in state['trades']):
-        raise ValueError('Record your index fund buys first (the Index fund tab): the caps are a share of your whole '
-                         'portfolio, so the program needs to know how big it is.')
     trial = {**state, 'trades': state['trades'] + [new]}
     mk = markets(trial)
     s = score(trial, mk, new['date'], is_paper(new))
+    total, _ = whole(trial, s)
+    if not total:
+        raise ValueError('Record your index fund buys first (the Index fund tab), or read in your broker records on the '
+                         'Portfolio page: the caps are a share of your whole portfolio, so the program needs to know '
+                         'how big it is.')
     mine = sum(h['value'] for h in s['holdings'] if h['ticker'] == new['ticker'])
-    if s['total'] and mine / s['total'] > r['company_cap'] / 100 + 1e-9:
-        raise ValueError(f"After this buy, {new['company']} would be {mine / s['total']:.1%} of your portfolio; your "
+    share = (s['picks_value'] - s['picks_cash']) / total
+    if mine / total > r['company_cap'] / 100 + 1e-9:
+        raise ValueError(f"After this buy, {new['company']} would be {mine / total:.1%} of your portfolio; your "
                          f"cap is {r['company_cap']}% per company. Buy less, or none.")
-    if s['picks_share'] > r['picking_cap'] / 100 + 1e-9:
-        raise ValueError(f"After this buy, your picks together would be {s['picks_share']:.1%} of your portfolio; your "
+    if share > r['picking_cap'] / 100 + 1e-9:
+        raise ValueError(f"After this buy, your picks together would be {share:.1%} of your portfolio; your "
                          f"cap is {r['picking_cap']}%. The rest goes to the index fund.")
 
 

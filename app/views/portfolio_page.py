@@ -15,6 +15,16 @@ def markets(key, _s):
     return H.markets(_s)
 
 
+def name(text):
+    """A broker's name for a holding, readable: DeGiro writes "TESLA MOTORS INC. - C" (capitals, cut off)."""
+    import re
+    text = re.sub(r'(\s+-\s*\w{0,2}|\s+CLASS)$', '', (text or '').strip()).rstrip(' -')  # a cut-off tail
+    if text.isupper():
+        text = ' '.join(w if w in ('NV', 'N.V.', 'SE', 'PLC', 'AG', 'SA', 'ETF', 'UCITS', 'USD', 'EUR', 'ASML', 'MSCI',
+                                   'S&P', 'FTSE', 'II', 'III') else w.capitalize() for w in text.split())
+    return text
+
+
 def signed(v, nd=1):
     return f'{v:+.{nd}%}'.replace('-', '−')
 
@@ -125,7 +135,7 @@ def holdings_rows(s, mk):
         v = p['units'] * px
         gain = v + p['received_eur'] + p['dividends_eur'] - p['paid_eur']
         kind = sec.get('kind') or 'stock'
-        rows.append({'Holding': sec.get('name', isin), 'Kind': 'Fund (ETF)' if kind == 'index' else 'Stock',
+        rows.append({'Holding': name(sec.get('name', isin)), 'Kind': 'Fund (ETF)' if kind == 'index' else 'Stock',
                      'At': ', '.join(b for b, u in p['by_broker'].items() if abs(u) > 1e-9),
                      'Value': v, 'Gain €': gain, 'Gain %': gain / p['paid_eur'] * 100 if p['paid_eur'] else None,
                      'Costs paid': p['costs_eur'], 'Dividends (net)': p['dividends_eur'],
@@ -194,12 +204,15 @@ def render():
             table.append({'Holding': 'Cash', 'Kind': 'Cash',
                           'At': ', '.join(sorted({b for (b, c), a in cash_now.items() if abs(a) >= 0.005})),
                           'Value': cv, 'Weight': cv / total * 100 if total else None})
-        show = pd.DataFrame(table)
-        money = st.column_config.NumberColumn(format='€%,.2f')
-        st.dataframe(show, hide_index=True, use_container_width=True, column_config={
-            'Holding': st.column_config.TextColumn(pinned=True), 'Value': money, 'Gain €': money, 'Costs paid': money,
-            'Dividends (net)': money, 'Gain %': st.column_config.NumberColumn(format='%+.1f%%'),
-            'Weight': st.column_config.NumberColumn(format='%.1f%%')})
+        # as text: Streamlit shows an empty number (the cash row has no gain) as "None" whatever the format; the rows
+        # are already in order of value
+        eur = lambda v: '' if v is None else f"{'−' if v < 0 else ''}€{abs(v):,.2f}"
+        pct = lambda v, sign=True: '' if v is None else (f'{v:+.1f}%' if sign else f'{v:.1f}%').replace('-', '−')
+        show = pd.DataFrame([{**r, **{k: eur(r.get(k)) for k in ('Value', 'Gain €', 'Costs paid', 'Dividends (net)')},
+                              'Gain %': pct(r.get('Gain %')), 'Weight': pct(r.get('Weight'), False)} for r in table])
+        st.dataframe(show.fillna(''), hide_index=True, use_container_width=True, column_config={
+            'Holding': st.column_config.TextColumn(pinned=True),
+            'Sector': st.column_config.TextColumn(width='medium')})
         st.caption('Gain = what it is worth + what you got back from selling and dividends − what you paid, costs '
                    'included. Sector and country: Yahoo Finance, for single stocks only (a fund owns thousands of '
                    'companies), and they can be wrong.')
@@ -268,7 +281,10 @@ def checks_part(s):
             st.error(f"{b}: {c['differences']} difference(s) with the statement of {c['date']}. The figures above "
                      'are not reliable until this is fixed.', icon=':material/error:')
             details = c.get('details') or []
-            st.dataframe(details, hide_index=True)
+            st.dataframe(pd.DataFrame([{'What': d['what'], 'Your records add up to': d['records'],
+                                        "The broker's statement says": d['broker'],
+                                        'Difference': d['broker'] - d['records']} for d in details]),
+                         hide_index=True)
             small = [d for d in details if d['what'].startswith('cash ') and abs(d['broker'] - d['records']) < 1]
             if small and len(small) == len(details):
                 st.caption('Only a few cents of cash differ. That happens when the broker\'s own export doesn\'t add '

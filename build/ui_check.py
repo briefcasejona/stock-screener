@@ -52,7 +52,7 @@ def main():
             page.on('pageerror', lambda e: problems.append(f'javascript error: {e}'))
             for slug, title in PAGES.items():
                 page.goto(f'{url}/' + ('' if slug == 'candidates' else slug))  # the first page lives at /
-                page.wait_for_selector('[data-testid="stSidebar"]', timeout=120000)
+                page.wait_for_selector('[data-testid="stSidebar"]', state='attached', timeout=120000)
                 page.wait_for_timeout(1500)
                 page.wait_for_function('() => !document.querySelector(\'[data-testid="stStatusWidget"]\')',
                                        timeout=120000)

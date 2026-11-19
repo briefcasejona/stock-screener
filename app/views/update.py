@@ -47,7 +47,7 @@ def job_progress():
 def show_check(out):
     if not out:
         return
-    st.caption(f"Last monthly check: {out['at']}, {len(out['checked'])} companies followed.")
+    st.caption(f"Last monthly check: {out['at']}, {len(out['checked'])} compan{'y' if len(out['checked']) == 1 else 'ies'} followed.")
     for e in out['events']:
         if e['event'] == 'annual report':
             st.success(core.md(f"{e['company']}: new annual report (year to {e['year_to']}). The analysis was re-run: base value "
@@ -165,6 +165,20 @@ def render():
     data_folder_part()
     st.divider()
     summary_part()
+    st.divider()
+    quit_button('quit_update')
+    st.caption('Closing the program\'s last window stops it too.')
+
+
+def quit_button(key):
+    """Stop the program (closing its last window does that too)."""
+    if st.button('Quit the program', icon=':material/power_settings_new:', key=key):
+        import signal
+        import threading
+        import datafolder
+        st.info('The program has stopped. You can close this window.')
+        datafolder.release(core.DATA)
+        threading.Timer(1.0, lambda: os.kill(os.getpid(), signal.SIGTERM)).start()
 
 
 def data_folder_part():
@@ -182,7 +196,7 @@ def data_folder_part():
             '3. Wait until Google Drive has synced (its icon in the taskbar or menu bar stops turning).\n'
             '4. On the other computer: install this program, pick the same Google Drive folder below, press **Use the '
             'data that is already there**, and restart the program.\n\n'
-            'Use the program on **one computer at a time**, and quit it (button on the left) before switching. If '
+            'Use the program on **one computer at a time**, and quit it (the Quit button at the bottom of this page) before switching. If '
             'the other computer still has it open, the program warns you at the top of the page.')
     found = datafolder.cloud_folders()
     opts = [p for _, p in found] + ['Another folder...']
@@ -197,14 +211,14 @@ def data_folder_part():
     if a.button('Move my data there', type='primary', disabled=not folder):
         try:
             dst = datafolder.move(folder)
-            st.success(f'Your data is copied to {dst}. Quit the program (button on the left) and start it again to use it. '
+            st.success(f'Your data is copied to {dst}. Quit the program (the Quit button at the bottom of this page) and start it again to use it. '
                        f'The old folder ({core.DATA}) stays as a spare copy; you can delete it once all works.')
         except (ValueError, OSError) as e:
             st.error(str(e))
     if b.button('Use the data that is already there', disabled=not folder):
         try:
             dst = datafolder.use(folder)
-            st.success(f'This computer now uses {dst}. Quit the program (button on the left) and start it again.')
+            st.success(f'This computer now uses {dst}. Quit the program (the Quit button at the bottom of this page) and start it again.')
         except (ValueError, OSError) as e:
             st.error(str(e))
     if core.DATA != datafolder.DEFAULT:

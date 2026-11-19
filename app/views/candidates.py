@@ -11,7 +11,6 @@ from views import data, quarter
 
 # colours for your own journal decisions; "Note" is what the program writes (it never decides for you)
 BADGE = {'Buy': 'green', 'Wait': 'gray', 'No': 'red', 'Sell': 'orange', 'Still researching': 'blue', 'Note': 'gray'}
-NAN = float('nan')  # an empty number cell (shown blank, never "None")
 
 
 def palette():
@@ -34,11 +33,15 @@ def value_line(c, m):
     pts = pd.DataFrame([{'v': c[k], 'label': f"{k.capitalize()} {core.money(c[k], c['currency'])}"}
                         for k in ('bear', 'base', 'bull')])
     dots = alt.Chart(pts).mark_circle(size=110, color=col['ink'], opacity=1).encode(x=x, tooltip=['label'])
-    names = alt.Chart(pts).mark_text(dy=-20, fontSize=12, color=col['ink']).encode(x=x, text='label')
+    # bear's label reads to the left of its dot, bull's to the right and base's on a higher row, so three values close
+    # together never print over each other, and the price tick (below the labels) never runs through one
+    names = alt.layer(*[alt.Chart(pts.iloc[[i]]).mark_text(dy=dy, dx=dx, align=al, fontSize=12, color=col['ink'])
+                        .encode(x=x, text='label')
+                        for i, dy, dx, al in ((0, -26, 4, 'right'), (1, -44, 0, 'center'), (2, -26, -4, 'left'))])
     price = pd.DataFrame([{'v': c['price'], 'label': f"Price {core.money(c['price'], c['currency'])}"}])
     tick = alt.Chart(price).mark_tick(thickness=3, size=34, color=col['price']).encode(x=x)
-    ptxt = alt.Chart(price).mark_text(dy=28, fontSize=12, fontWeight='bold', color=col['price']).encode(x=x, text='label')
-    return alt.layer(zone, band, dots, names, tick, ptxt).properties(height=110).configure_view(stroke=None)
+    ptxt = alt.Chart(price).mark_text(dy=30, fontSize=12, fontWeight='bold', color=col['price']).encode(x=x, text='label')
+    return alt.layer(zone, band, dots, names, tick, ptxt).properties(height=140).configure_view(stroke=None)
 
 
 def sensitivity(c, scen):
@@ -122,38 +125,47 @@ def history_charts(hist, c):
         return
     h['Year'] = h['year'].astype(str)
     cur = c['currency']
+    for k in ('fcf_per_share', 'eps', 'pe_year_end', 'roic', 'gross_margin', 'revenue_m'):
+        if k not in h:
+            h[k] = float('nan')
+    # every chart has the same years, in the same order, with the labels level
+    year = alt.X('Year:N', title=None, scale=alt.Scale(domain=list(h['Year'])),
+                 axis=alt.Axis(labelAngle=0, labelOverlap='parity'))
     a, b = st.columns(2)
     with a:
         st.markdown(f'**Cash flow and earnings per share** ({cur})')
         long = h.melt('Year', ['fcf_per_share', 'eps'], 'kind', 'value').dropna()
         long['kind'] = long['kind'].map({'fcf_per_share': 'Free cash flow', 'eps': 'Earnings'})
         st.altair_chart(alt.Chart(long).mark_bar().encode(
-            x=alt.X('Year:N', title=None), xOffset='kind:N', y=alt.Y('value:Q', title=None),
+            x=year, xOffset='kind:N', y=alt.Y('value:Q', title=None),
             color=alt.Color('kind:N', title=None, legend=alt.Legend(orient='top')),
             tooltip=['Year', 'kind', alt.Tooltip('value:Q', format=',.2f')]).properties(height=240))
     with b:
         st.markdown('**P/E at each year end**')
         pe = h.dropna(subset=['pe_year_end'])
-        chart = alt.Chart(pe).mark_line(point=True).encode(x=alt.X('Year:N', title=None), y=alt.Y('pe_year_end:Q', title=None),
+        chart = alt.Chart(pe).mark_line(point=True).encode(x=year, y=alt.Y('pe_year_end:Q', title=None),
                                                            tooltip=['Year', alt.Tooltip('pe_year_end:Q', title='P/E')])
         if c.get('pe_median_10y'):
             med = alt.Chart(pd.DataFrame([{'m': c['pe_median_10y']}])).mark_rule(strokeDash=[4, 4], color='gray').encode(y='m:Q')
             chart = chart + med
         st.altair_chart(chart.properties(height=240))
-        st.caption(f"Dashed line: median {c.get('pe_median_10y')}. Today: {c.get('pe_ltm')} ({c.get('pe_basis', 'P/E')}).")
+        n = min(10, len(pe))
+        st.caption((f"Dashed line: median of the last {n} year-end P/Es, {c['pe_median_10y']}. " if c.get('pe_median_10y')
+                    else '') + f"Today: {c.get('pe_ltm')} ({c.get('pe_basis', 'P/E')}).")
     a, b = st.columns(2)
     with a:
-        st.markdown('**Return on invested capital and gross margin**')
+        st.markdown('**Return on invested capital' + (' and gross margin**' if h['gross_margin'].notna().any()
+                                                       else '**  \n(no gross margin in the figures)'))
         long = h.melt('Year', ['roic', 'gross_margin'], 'kind', 'value').dropna()
         long['kind'] = long['kind'].map({'roic': 'ROIC', 'gross_margin': 'Gross margin'})
         st.altair_chart(alt.Chart(long).mark_line(point=True).encode(
-            x=alt.X('Year:N', title=None), y=alt.Y('value:Q', title=None, axis=alt.Axis(format='%')),
+            x=year, y=alt.Y('value:Q', title=None, axis=alt.Axis(format='%')),
             color=alt.Color('kind:N', title=None, legend=alt.Legend(orient='top')),
             tooltip=['Year', 'kind', alt.Tooltip('value:Q', format='.1%')]).properties(height=240))
     with b:
         st.markdown('**Revenue** (millions, report currency)')
         st.altair_chart(alt.Chart(h.dropna(subset=['revenue_m'])).mark_bar(color=palette()['bars'], cornerRadiusTopLeft=4, cornerRadiusTopRight=4).encode(
-            x=alt.X('Year:N', title=None), y=alt.Y('revenue_m:Q', title=None),
+            x=year, y=alt.Y('revenue_m:Q', title=None),
             tooltip=['Year', alt.Tooltip('revenue_m:Q', format=',.0f')]).properties(height=240))
 
 
@@ -290,7 +302,7 @@ def commit_form(c, scen, hist):
                 help=f"From {h[0]['year']} to {h[-1]['year']}." if h else None)
     k[2].metric('Return on capital, last year', core.pct(roic) if roic is not None else 'n/a',
                 help='Profit on the money invested in the business. Well above 10% for years usually means a moat.')
-    st.caption('The History tab below has every year. Lesson 2 and 3 of the Course show what to look for.')
+    st.caption('The History tab below has every year. Lessons 2 and 3 of the Course show what to look for.')
 
     st.markdown('**2. Pick a starting point** for the next 10 years.')
     choices = {}
@@ -432,16 +444,18 @@ def render():
         mine, when = core.my_decision(c, d['journal'])
         yours = f'{mine} ({when})' if mine else '—'
         if not committed(c, wl.get(c['ticker'])):
-            rows.append({'Company': c['company'], 'Updates': c.get('follow', ''),
-                         'Price': core.money(c['price'], c['currency']), 'Value (bear / base / bull)': 'after your estimate',
-                         'Buy below': '', 'Price vs buy-below': NAN, 'Your decision': yours,
-                         'Growth rates': '', 'Checks passed': '', 'Analysed': c.get('analysed', '')})
+            rows.append({'Company': c['company'], 'Your decision': yours, 'Price vs buy-below': '—',
+                         'Price': core.money(c['price'], c['currency']), 'Buy below': '',
+                         'Value (bear / base / bull)': 'after your estimate', 'Growth rates': '', 'Checks passed': '',
+                         'Updates': c.get('follow', ''), 'Analysed': c.get('analysed', '')})
             continue
         gap = core.price_vs_buy_below(c, m)
-        rows.append({'Company': c['company'], 'Updates': c.get('follow', ''), 'Price': core.money(c['price'], c['currency']),
+        # the columns you decide on come first, so they stay in view on a small screen
+        rows.append({'Company': c['company'], 'Your decision': yours,
+                     'Price vs buy-below': '—' if gap is None else f'{gap:+.0%}'.replace('-', '−'),
+                     'Price': core.money(c['price'], c['currency']), 'Buy below': core.money(bb, c['currency']),
                      'Value (bear / base / bull)': ' / '.join(core.money(c[k], c['currency']) for k in ('bear', 'base', 'bull')),
-                     'Buy below': core.money(bb, c['currency']), 'Price vs buy-below': NAN if gap is None else gap * 100,
-                     'Your decision': yours,
+                     'Updates': c.get('follow', ''),
                      'Growth rates': 'reviewed by you' if core.reviewed(c) else 'not reviewed yet',
                      'Checks passed': f"{c['quality_passed'] + c['garp_passed']} of 10",
                      'Analysed': c.get('analysed', '')})
@@ -456,14 +470,14 @@ def render():
     # each text column as wide as its longest value, so nothing is cut off (about 8 pixels a character)
     widths = {col: st.column_config.TextColumn(col, width=int(max(len(col), *(len(str(v)) for v in table[col])) * 8.5 + 28))
               for col in table.columns if table[col].dtype == object}
-    shown = table.style.format({'Price vs buy-below': lambda v: f'{v:+.0f}%'.replace('-', '−')}, na_rep='')
-    ev = st.dataframe(shown, hide_index=True, on_select='rerun', selection_mode=['single-row', 'single-cell'],
+    # text, not a number: Streamlit shows an empty number as "None" whatever the format (a short list sorts fine by eye)
+    ev = st.dataframe(table, hide_index=True, on_select='rerun', selection_mode=['single-row', 'single-cell'],
                       selection_default={'selection': {'rows': [default]}},
                       key=f"cand_table_{ss.get('cand_gen', 0)}_{len(cands)}",
                       column_config=widths | {'Company': st.column_config.TextColumn(
                                          'Company', pinned=True, width=widths['Company']['width']
                                          if isinstance(widths.get('Company'), dict) else None),
-                                     'Price vs buy-below': st.column_config.NumberColumn(
+                                     'Price vs buy-below': st.column_config.TextColumn(
                                      help='How far the price is above (+) or below (−) the buy-below price.')})
     picked = list(ev.selection.rows) + [cell[0] for cell in getattr(ev.selection, 'cells', [])]
     sel = picked[0] if picked and picked[0] < len(cands) else default
@@ -473,13 +487,13 @@ def render():
     scen = [s for s in d['scenarios'] if s['company'] == c['company']]
 
     st.divider()
-    a, b = st.columns([4, 1], vertical_alignment='center')
-    a.subheader(f"{c['company']}")
-    if entry and b.button('Remove from list', icon=':material/remove_circle:', key=f"hide_{c['ticker']}",
+    st.subheader(f"{c['company']}")
+    a, b = st.columns([3, 1], vertical_alignment='center')
+    a.caption(f"{c['ticker']} · {c.get('exchange', '')} · {c.get('region', '')} · analysed {c.get('analysed', '')} · "
+              f"figures up to {c.get('figures_to', '')}")
+    if entry and b.button('Remove from list', icon=':material/remove_circle:', key=f"hide_{c['ticker']}", type='tertiary',
                           help='Takes it off your candidates. You can put it back any time, exactly as it was.'):
         set_hidden(c['ticker'], True)
-    st.caption(f"{c['ticker']} · {c.get('exchange', '')} · {c.get('region', '')} · analysed {c.get('analysed', '')} · "
-               f"figures up to {c.get('figures_to', '')}")
     if not committed(c, entry):
         st.metric(f"Price, {c.get('price_date', '')}", core.money(c['price'], c['currency']),
                   help='The latest close the program has; the Screener shows the same price.')
@@ -532,11 +546,12 @@ def render():
         sensitivity(c, scen)
     with t[1]:
         checks = [x for x in d['checks'] if x['company'] == c['company']]
-        st.dataframe(pd.DataFrame([{'Step': x['step'], 'Check': x['filter'], 'Value': x['value'],
-                                    'Threshold': x['threshold'],
+        st.dataframe(pd.DataFrame([{'Check': x['filter'],
                                     'Result': {'Pass': '✅ Pass', 'Fail': '❌ Fail', 'Ask why': '❓ Ask why'}.get(
-                                        x['result'], '— ' + x['result'])}
-                                   for x in checks]), hide_index=True)
+                                        x['result'], '— ' + x['result']),
+                                    'Value': x['value'], 'Threshold': x['threshold'], 'Step': x['step']}
+                                   for x in checks]), hide_index=True,
+                     column_config={'Check': st.column_config.TextColumn(pinned=True)})
         st.caption('Six quality checks (is it a great business?) and four GARP checks (is it growing, at a reasonable '
                    'price?). Passing all 10 means worth a deep dive, never "buy".')
     with t[2]:

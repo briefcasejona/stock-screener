@@ -26,15 +26,36 @@ def render():
                  if (wl.get(c['ticker']) or {}).get('worked_example') or commit.get(c['ticker'])}
     known = {c['company'] for c in d['candidates']}
     hidden = lambda e: e.get('author') != 'You' and e['company'] in known and e['company'] not in open_book
+    companies = sorted({e['company'] for e in entries})
+    pick = st.multiselect('Company', companies, placeholder='All companies', key='jr_companies')
+    if pick:
+        entries = [e for e in entries if e['company'] in pick]
     if entries:
-        st.dataframe(pd.DataFrame([{
-            'Date': e['date'], 'Company': e['company'], 'Decision': core.word(e.get('decision')),
-            'Price': '' if e.get('price') is None else core.money(e['price'], e['currency']),
-            'Why': 'shown once you have locked in your own estimate' if hidden(e) else e['why'],
+        why = lambda e: 'shown once you have locked in your own estimate' if hidden(e) else e['why']
+        # your own words come first, so they stay in view on a small screen; click a row to read the entry in full
+        ev = st.dataframe(pd.DataFrame([{
+            'Date': e['date'], 'Company': e['company'], 'Decision': core.word(e.get('decision')), 'Why': why(e),
             'What would change my mind': e.get('change_mind', ''), 'Next check': e.get('next_check', ''),
-            'By': e.get('author', '')} for e in entries]), hide_index=True,
+            'Price': '' if e.get('price') is None else core.money(e['price'], e['currency']),
+            'By': e.get('author', '')} for e in entries]), hide_index=True, on_select='rerun',
+            selection_mode=['single-row', 'single-cell'], key=f"jr_table_{who}_{'|'.join(pick)}",
             column_config={'Company': st.column_config.TextColumn('Company', pinned=True),
                            'Why': st.column_config.TextColumn(width='large')})
+        sel = list(ev.selection.rows) + [cell[0] for cell in getattr(ev.selection, 'cells', [])]
+        sel = [i for i in sel if i < len(entries)]
+        if sel:
+            e = entries[sel[0]]
+            with st.container(border=True):
+                st.markdown(f"**{core.md(e['company'])}** · {e['date']} · {core.md(core.word(e.get('decision')))}"
+                            + (f" · price {core.md(core.money(e['price'], e['currency']))}" if e.get('price') is not None
+                               else '') + f" · by {core.md(e.get('author', ''))}")
+                st.markdown(core.md(why(e)))
+                if e.get('change_mind'):
+                    st.markdown('**What would change my mind:** ' + core.md(e['change_mind']))
+                if e.get('next_check'):
+                    st.markdown('**Next check:** ' + core.md(e['next_check']))
+        else:
+            st.caption('Click a row to read the entry in full.')
     else:
         st.info('No entries yet.')
     claims_part()

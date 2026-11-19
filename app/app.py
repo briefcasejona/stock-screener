@@ -7,7 +7,9 @@ import streamlit as st
 import core
 from views import candidates, course, guide, journal, portfolio_page, reports, scoreboard, screener, update
 
-st.set_page_config(page_title='Stock Screener', page_icon=':material/query_stats:', layout='wide')
+# the sidebar starts closed: it holds only the monthly check's date and Quit, and the pages get the full width
+st.set_page_config(page_title='Stock Screener', page_icon=':material/query_stats:', layout='wide',
+                   initial_sidebar_state='collapsed')
 st.html('<style>' + open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'style.css'), encoding='utf-8').read()
         + '</style>')
 
@@ -44,13 +46,7 @@ with st.sidebar:
     st.caption(f"Keeps the companies you follow up to date. Next: when you open the program on or after "
                f"{core.next_check_date():%d %b %Y}. You can also run it on the Update data page.")
     st.divider()
-    if st.button('Quit the program', icon=':material/power_settings_new:'):
-        import signal
-        import threading
-        st.info('The program has stopped. You can close this window.')
-        import datafolder
-        datafolder.release(core.DATA)
-        threading.Timer(1.0, lambda: os.kill(os.getpid(), signal.SIGTERM)).start()
+    update.quit_button('quit_side')
     st.caption(core.DISCLAIMER)
 
 @st.fragment(run_every=5)

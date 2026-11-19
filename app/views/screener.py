@@ -134,7 +134,10 @@ def render():
     dates = Counter(r.get('price_date') for r in rows if r.get('price_date'))
     common = dates.most_common(1)[0][0] if dates else None
     newer = sum(n for d, n in dates.items() if common and d > common)
-    st.caption(f"{len(view)} of {len(rows)} companies shown · {sum(r['passed'] == 10 for r in rows)} pass all 10"
+    yours = sum(r['ticker'] in mine or 'your files' in r['source'] for r in rows)
+    st.caption(f"{len(view)} of {len(rows)} companies shown"
+               + (f" ({yours} of them added by you)" if yours else '')
+               + f" · {sum(r['passed'] == 10 for r in rows)} pass all 10"
                + (f" · prices of {common}" + (f" ({newer} newer, from analyses and checks)" if newer else '')
                   if common else '') + '. '
                'A company whose figures need checking shows at most 9 of 10 until you have checked them. '
@@ -153,9 +156,9 @@ def render():
         'Years': r['years'], 'Source': r['source'],
         'Notes': (lambda n: f"{n} note{'s' if n > 1 else ''}" if n else '')(len(core.data_notes(r['data_flags'])))}
         for r in view])
-    # numbers stay numbers (they sort as numbers); an empty one shows blank, never "None"
+    # numbers stay numbers, so they sort as numbers
     shown = table.style.format({k: '{:.1f}%' for k in ('ROIC (median)', 'Revenue growth', 'Cash/share growth',
-                                                        'Growth price assumes')} | {'P/E': '{:.1f}'}, na_rep='')
+                                                        'Growth price assumes')} | {'P/E': '{:.1f}'}, na_rep='—')
     # the table is keyed on the filters, so a changed filter never leaves an old row number selected; the company you
     # had open stays selected when it is still in view
     fkey = f"scr_table_{region}_{least}_{'|'.join(pick)}_{q}"
@@ -181,9 +184,11 @@ def render():
     st.divider()
     st.subheader(r['company'])
     st.caption(f"{r['ticker']} · {r['region']} · {r['sector']} · {r['years']} years of figures "
-               f"({r['first_year']}–{r['last_year']}) · source {r['source']} · price {r['price']} {r['price_currency']}"
+               f"({r['first_year']}–{r['last_year']}) · source {r['source']} · price "
+               + core.md(core.money(r['price'] / 100, 'GBP') if r['price_currency'] in ('GBp', 'GBX') and r['price']
+                         else core.money(r['price'], r['price_currency']))
                + (f" on {r['price_date']}" if r.get('price_date') else ''))
-    st.dataframe(pd.DataFrame([{'Step': s, 'Check': n, 'Value': v(r), 'Threshold': t, 'Result': result(r, k)}
+    st.dataframe(pd.DataFrame([{'Check': n, 'Result': result(r, k), 'Value': v(r), 'Threshold': t, 'Step': s}
                                for k, s, n, v, t in CHECKS]), hide_index=True,
                  column_config={'Result': st.column_config.TextColumn('Result', width='large')})
     st.caption('"Reasonable price": the growth today\'s price assumes (reverse DCF at 9%) should be no more than the '

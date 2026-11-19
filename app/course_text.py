@@ -187,11 +187,11 @@ they didn't read, or chose not to see.
 - **Buffett, 2002 letter** ([free]({BUFFETT})): beware weak accounting (if a company plays games with how it reports,
   the games probably don't stop there), footnotes you can't understand, and companies that trumpet earnings forecasts.
 - **Lynch, One Up on Wall Street** (chapter "Stocks I'd Avoid"): the hottest stock in the hottest industry,
-  "diworsification" (buying businesses unrelated to the core), and companies that depend on one customer.
+  diversifying into businesses unrelated to the core (Peter Lynch called it "diworsification"), and companies that depend on one customer.
 - **Fisher, Common Stocks and Uncommon Profits** ("Five Don'ts for Investors"): don't buy a stock because you like
   the tone of its annual report; a polished report can hide a weak business. ("Five More Don'ts"): don't follow the
   crowd.
-- **Your biases** (a box, not a lesson): *confirmation bias*: searching only for what supports your view. *Anchoring*:
+- **Your biases**: *confirmation bias*: searching only for what supports your view. *Anchoring*:
   sticking to the first price you saw. *Overconfidence*: your 80%-sure claims will show whether you are. A simple fix
   from both Lynch and Buffett: write down why you would be wrong before you decide.
 """,

@@ -3,6 +3,7 @@ import pandas as pd
 import streamlit as st
 
 import core
+import glossary as G
 from views import data
 
 CHECKS = [  # key, step, name, how the value reads, threshold
@@ -117,7 +118,7 @@ def render():
     rows = data.screen()
     st.title('Screener')
     st.caption('An idea generator: the playbook\'s 10 checks on the S&P 500 and STOXX Europe 600 (banks, insurers and '
-               'real estate left out). Passing all 10 means worth a deep dive, never "buy". ' + core.DISCLAIMER)
+               'real estate left out). Passing all 10 means worth a closer look, never "buy". ' + core.DISCLAIMER)
     if not rows:
         st.warning('No screener data. Run a full refresh on the Update data page.')
         return
@@ -172,8 +173,13 @@ def render():
                       selection_default={'selection': {'rows': [keep]}} if keep is not None else None,
                       height=min(420, 38 + 35 * len(view)), column_config={
                           'Company': st.column_config.TextColumn('Company', pinned=True),  # stays in view when scrolling
-                          **{k: st.column_config.TextColumn(k, alignment='right') for k in (
-                              'ROIC (median)', 'Revenue growth', 'Cash/share growth', 'Growth price assumes', 'P/E')},
+                          **{k: st.column_config.TextColumn(k, alignment='right', help=G.say(w) if w else None)
+                             for k, w in (('ROIC (median)', 'ROIC'), ('Revenue growth', None),
+                                          ('Cash/share growth', 'Cash/share growth'),
+                                          ('Growth price assumes', 'Reverse DCF / growth the price assumes'),
+                                          ('P/E', 'P/E (price / earnings)'))},
+                          'Quality': st.column_config.TextColumn('Quality', help=G.say('Quality')),
+                          'GARP': st.column_config.TextColumn('GARP', help=G.say('GARP')),
                           'Checks': st.column_config.ProgressColumn('Checks', min_value=0, max_value=10, format='%d/10'),
                           'Data': st.column_config.TextColumn(
                               'Data', help='"check first": a figure differs from a second source, or debt, capital '

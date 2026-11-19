@@ -172,6 +172,37 @@ def caps(state, s, paper):
                                help=f"Your cap is {r['company_cap']}% per company.")})
 
 
+def from_records(state):
+    """Index fund buys already in your broker records (Portfolio page): one press puts them here."""
+    try:
+        buys, other = P.imported_index_buys(state)
+    except Exception as e:
+        print('reading your broker records:', e)
+        return
+    sym = state['rules']['index_symbol']
+    if buys:
+        total = sum(b['amount_eur'] for b in buys)
+        st.info(f"Your broker records (Portfolio page) have {len(buys)} buy{'s' if len(buys) != 1 else ''} of {sym} "
+                f"that {'are' if len(buys) != 1 else 'is'} not here yet, {eur(total)} in all "
+                f"({', '.join(b['event']['date'] for b in buys[:6])}{', ...' if len(buys) > 6 else ''}). Add them with "
+                'the units, price and costs your broker reported, so you don\'t type them again.',
+                icon=':material/download:')
+        if st.button(f"Add {'them' if len(buys) != 1 else 'it'} to the scoreboard", type='primary', key='add_imported'):
+            n = P.add_imported_index_buys(state, buys)
+            st.session_state['price_refresh'] = st.session_state.get('price_refresh', 0) + 1
+            st.toast(f"Added {n} index fund buy{'s' if n != 1 else ''}.")
+            st.rerun()
+    elif other:
+        st.caption(f"Your broker records have index fund buys of {', '.join(sorted(other))}, but the scoreboard compares "
+                   f"with {sym}. To use them, choose that fund under Your rules (bottom of this page).")
+    elif any(t.get('import_id') for t in state['trades']):
+        st.caption('Every index fund buy in your broker records is on the scoreboard. New ones show up here after you '
+                   'read in a newer export on the Portfolio page (My data).')
+    else:
+        st.caption('Read in your broker records on the Portfolio page (My data) and your index fund buys show up here '
+                   'to add with one press; or record one by hand below.')
+
+
 def record(state):
     st.subheader('Record a trade')
     st.caption(f'A paper trade is dated today, at the latest price on Yahoo Finance (free, usually about 15 minutes behind '
@@ -182,6 +213,8 @@ def record(state):
     today = date.today()
     lo = today - timedelta(days=P.BACKDATE_DAYS)
     n = st.session_state.get('trade_form_n', 0)  # a fresh form after each recorded trade; a refused one keeps its text
+    with t1:
+        from_records(state)
     with t1, st.form(f'index_buy_{n}', enter_to_submit=False):
         st.write(f"Your monthly buy of {state['rules']['index_symbol']}: the default for every month's money.")
         a, b = st.columns(2)
@@ -322,7 +355,7 @@ def passes(state):
     wait = [r for r in rows if r['kind'] == 'Wait']
     if no:
         st.subheader('Companies you said No to')
-        st.caption('Saying no is a decision too. If a company you passed on then trails your index fund, staying away '
+        st.caption('Saying no is a decision too. If a company you said no to then trails your index fund, staying away '
                    'was a good call. Prices only, in euros, since the day of your "No".')
         st.dataframe(pd.DataFrame([{'Company': r['company'], 'Said no on': r['date'], 'The company since': r['stock'] * 100,
                                     'Your index fund since': r['index'] * 100,

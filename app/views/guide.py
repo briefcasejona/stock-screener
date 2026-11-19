@@ -10,6 +10,8 @@ def render():
     st.title('How to use it')
     st.caption(core.DISCLAIMER)
     st.markdown(f"""
+**Not sure what to do next?** The *Start here* page always shows your next step, with one button.
+
 The full method is in your **Stock-Picking Playbook** ([open it]({PLAYBOOK})). This is the short version, page by page.
 
 **Each month, by default, your €1,000 goes into the global index fund.** A single company gets money only when
@@ -37,14 +39,11 @@ company's investor-relations site and use *Add a report*. The ESEF version (a .z
 exactly; a PDF needs you to point out a few lines, which is a good way to learn to read the statements.
 """)
     st.subheader('Words you will see')
-    st.markdown("""
-- **Free cash flow (FCF):** cash from operations minus investment in equipment and software. What the owners could
-  take out each year.
-- **DCF:** the value of a share as all its future cash flows, discounted back to today. *Reverse DCF* turns it around:
-  which growth makes the value equal to today's price?
-- **Discount rate:** the yearly return you ask for. Higher means a lower value today.
-- **ROIC:** return on invested capital. Above 15% for years usually means a moat: something competitors cannot copy.
-- **Margin of safety:** buying well below your estimate of value, because the estimate can be wrong.
-- **Normalised cash flow:** for cyclical companies, the average margin times today's revenue, so one boom or bust
-  year does not drive the value.
-""")
+    st.caption('Each word has one meaning, the same on every page. Many column names and figures have a ⓘ or a '
+               'question mark: hover over it, or tap it, for the same explanation.')
+    import glossary as G
+    q = st.text_input('Look up a word', placeholder='For example: ROIC', key='glossary_q').strip().lower()
+    hits = {w: t for w, t in G.WORDS.items() if not q or q in w.lower() or q in t.lower()}
+    if not hits:
+        st.caption('Not in the list. The Stock-Picking Playbook explains more.')
+    st.markdown('\n'.join(f'- **{w}:** {t}' for w, t in sorted(hits.items(), key=lambda x: x[0].lower())))

@@ -130,7 +130,7 @@ def new(ticker, company, metric, direction, threshold, target_year, confidence, 
     if METRICS[metric][1] == 'growth' and not (ys[base].get(metric) or 0) > 0:
         raise ValueError(f'{METRICS[metric][0]} in FY{base} is not positive, so a growth rate from it means nothing. '
                          'Pick another measure.')
-    if len(why.strip()) < 10:
+    if not core.words(why):
         raise ValueError('Write one line on why you expect this (a few words at least).')
     if any(x['ticker'] == ticker and x['metric'] == metric and x['direction'] == direction
            and abs(x['threshold'] - float(threshold)) < 1e-9 and x['target_year'] == int(target_year)

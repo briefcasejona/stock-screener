@@ -23,10 +23,12 @@ def get(ticker):
     return load().get(ticker)
 
 
-def new(c, growth, value, why, start=None):
-    """Lock in your estimate for candidate `c` (growth in %, value per share in the price's currency)."""
-    if not why.strip():
-        raise ValueError('Write one line on why.')
+def new(c, growth, value, why, start=None, program=None):
+    """Lock in your estimate for candidate `c` (growth in %, value per share in the price's currency). `program`: the
+    program's own base case at this moment ({'growth', 'value'}), kept so the comparison stays with it after you set
+    your own growth rates (which then become the base case)."""
+    if not core.words(why):
+        raise ValueError('Write one line on why (a few words at least).')
     if value <= 0:
         raise ValueError('Fill in what you think one share is worth.')
     allc = load()
@@ -36,6 +38,8 @@ def new(c, growth, value, why, start=None):
          'price': c['price'], 'why': why.strip()}
     if start:
         e['start'] = start
+    if program:
+        e['program'] = program
     allc[c['ticker']] = e
     core.localdata.write_json(PATH, allc, indent=1)
     core.add_journal_entry({'date': e['date'], 'ticker': c['ticker'], 'company': c['company'], 'price': c['price'],

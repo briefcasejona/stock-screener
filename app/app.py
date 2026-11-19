@@ -35,6 +35,14 @@ if _origin and _origin not in (f'http://127.0.0.1:{_port}', f'http://localhost:{
     st.stop()
 page = st.navigation(list(PAGES.values()), position='top')
 
+# after the data folder moved, nothing may be written to the old one: every page waits for the restart
+if core.RESTART_NEEDED:
+    from views import update as _u
+    st.warning(core.RESTART_NEEDED + ' Quit the program now and start it again; until then nothing can be changed, so '
+               'nothing is written to the old folder.', icon=':material/restart_alt:')
+    _u.quit_button('quit_restart')
+    st.stop()
+
 # The first start counts as a check (the data in the download is fresh, and a company you add is analysed there and
 # then).
 if 'last_check' not in core.settings():
@@ -72,17 +80,36 @@ def first_download_banner():
             st.rerun(scope='app')
 
 
-@st.fragment(run_every=600)
 def one_computer_at_a_time():
-    """With your data in Google Drive (or similar): warn when the other computer has it open, and note that this one
-    does (refreshed every 10 minutes while the program runs)."""
+    """With your data in Google Drive (or similar): when the other computer has it open, nothing can be changed here
+    until it is closed there (used on both at once, changes from one overwrite the other). Otherwise this computer notes
+    that it has the data open, every 5 minutes for as long as the program runs."""
     import datafolder
+    if st.session_state.get('took_over'):
+        datafolder.keep_marked(core.DATA)
+        return
     other = datafolder.other_user(core.DATA)
-    if other:
-        st.warning(f"Your data is also open on **{other[0]}** (seen {other[1]:%H:%M}). Close the program there first: "
-                   'used on two computers at once, changes from one can overwrite the other.', icon=':material/devices:')
-    else:
+    if not other:
         datafolder.mark_in_use(core.DATA)
+        datafolder.keep_marked(core.DATA)
+        return
+    st.title('Your data is open on another computer')
+    st.warning(f"**{other[0]}** has had your data open, last seen {other[1]:%d %B at %H:%M}. Used on two computers at once, "
+               'changes from one overwrite the other, so nothing can be changed here until it is closed there.',
+               icon=':material/devices:')
+    st.write('Close the program on the other computer (Quit), wait a minute for Google Drive to sync, and press **Check '
+             'again**. If that computer is off or the program there crashed, take over: its note expires by itself '
+             'after 15 minutes anyway.')
+    a, b, c = st.columns(3)
+    if a.button('Check again', type='primary'):
+        st.rerun()
+    if b.button('Take over: it is closed there'):
+        datafolder.mark_in_use(core.DATA)
+        st.session_state['took_over'] = True
+        st.rerun()
+    with c:
+        update.quit_button('quit_other')
+    st.stop()
 
 
 one_computer_at_a_time()

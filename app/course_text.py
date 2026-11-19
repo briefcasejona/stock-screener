@@ -59,7 +59,7 @@ anything the program or anyone else tells you.
   competitors say, too.
 """,
         'do': 'Pick a company from your candidates, find its latest annual report, and write down the three figures and '
-              'the share count. Compare them with the program\'s History tab. Then record the write-up below.',
+              'the share count. Compare them with the program\'s figures (History tab, "All figures, year by year"). Then record the write-up below.',
     },
     {
         'title': 'Income statement',

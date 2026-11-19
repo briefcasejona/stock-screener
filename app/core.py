@@ -28,6 +28,8 @@ ADDED = os.path.join(DATA, 'added_companies.csv')
 SETTINGS = os.path.join(DATA, 'settings.json')
 BACKUPS = os.path.join(DATA, 'backups')
 KEEP_BACKUPS = 20
+# set when the data folder changed while the program runs: the pages then only ask for a restart
+RESTART_NEEDED = None
 KEEP_BACKUPS_SYNCED = 5  # in a Google Drive (or similar) folder: fewer copies of everything in the cloud
 MARGINS = (10, 20, 30)  # 5% was dropped (council, 10 Nov 2026): too thin to protect against hopeful growth rates
 DEFAULT_MARGIN = 20  # the owner's choice (19 Nov 2026 plan)
@@ -276,6 +278,29 @@ def money(v, cur):
     txt = f'{abs(v):,.2f}' if abs(v) < 100 else f'{abs(v):,.0f}'
     sign = '−' if v < 0 else ''
     return f'{sign}{sym}{txt}' if sym else f'{sign}{cur} {txt}'
+
+
+def picked(ev, n, current=None, memo=None):
+    """The row a table selection points at. A table can hold a row selection and a cell selection at once (a ticked row,
+    then a click in another row's cell), and both stay on later reruns: the one that is new since the last run is the
+    choice. `memo` is a dict kept between runs (for example in st.session_state)."""
+    sel = getattr(ev, 'selection', None)
+    found = [i for i in list(getattr(sel, 'rows', []) or []) + [c[0] for c in getattr(sel, 'cells', []) or []] if i < n]
+    before = (memo or {}).get('found', [])
+    if memo is not None:
+        memo['found'] = found
+    if not found:
+        return None
+    new = [i for i in found if i not in before]
+    if new:
+        return new[-1]
+    return current if current in found else found[-1]
+
+
+def words(text, least=10):
+    """True when `text` says something: at least `least` letters or digits (not "x", ".", or an emoji)."""
+    import unicodedata
+    return sum(unicodedata.category(ch)[0] in 'LN' for ch in (text or '')) >= least
 
 
 def md(text):

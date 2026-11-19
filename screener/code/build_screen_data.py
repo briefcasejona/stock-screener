@@ -67,6 +67,15 @@ def main():
             for k in TESTS:
                 row[k] = r[k]
             out.append(row)
+    # one row per company: two share classes of one company (GOOGL and GOOG, FOXA and FOX) have the same figures, so
+    # one is kept, the longer ticker (in these pairs, the class A shares)
+    seen, kept = set(), []
+    for o in sorted(out, key=lambda o: (o['company'], -len(o['ticker']), o['ticker'])):
+        k = (o['company'], o['region'], o['revenue_growth'], o['roic_median'])
+        if k not in seen:
+            seen.add(k)
+            kept.append(o)
+    out = kept
     out.sort(key=lambda o: (-o['passed'], -o['quality_passed'], o['implied_growth'] if o['implied_growth'] is not None else 9))
     os.makedirs(f'{BASE}/dashboard', exist_ok=True)
     json.dump(out, open(f'{BASE}/dashboard/screen.json', 'w', encoding='utf-8'), separators=(',', ':'))

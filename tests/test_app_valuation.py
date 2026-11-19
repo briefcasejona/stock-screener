@@ -28,3 +28,16 @@ class Valuation(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class StartingRule(unittest.TestCase):
+    def test_bear_is_half_of_base_when_revenue_grows(self):
+        import analyse
+        a = analyse.default_assumptions(0.15, 0.10)
+        self.assertEqual((a['base'], a['bear']), (0.10, 0.05))
+
+    def test_bear_declines_when_revenue_shrinks(self):
+        import analyse
+        a = analyse.default_assumptions(0.03, -0.02)
+        self.assertEqual(a['bear'], -0.02)
+        self.assertEqual(analyse.default_assumptions(0.03, -0.20)['bear'], -0.05)  # never below -5% a year

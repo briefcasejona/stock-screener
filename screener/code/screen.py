@@ -10,6 +10,7 @@ Output: output/screen_<region>.csv, one row per company with every filter's valu
 Run: python3 -I code/screen.py us
 """
 import csv
+import datetime
 import json
 import os
 import statistics
@@ -81,6 +82,10 @@ def screen(ticker, meta, rows, price, fx, second_source=()):
     ys = per_year(rows)[-YEARS:]
     res = {'ticker': ticker, **meta, 'years': len(ys), 'first_year': ys[0]['year'], 'last_year': ys[-1]['year']}
     flags = []
+    today = datetime.date.today()  # a year's annual report is out by May of the year after
+    if today.year - ys[-1]['year'] >= 3 or (today.year - ys[-1]['year'] == 2 and today.month >= 5):
+        flags.append(f"the latest figures are for {ys[-1]['year']}: a newer annual report is probably out (add it on the "
+                     '"Add a report" page), so the checks may be out of date')
     if len(ys) < YEARS:
         flags.append(f'only {len(ys)} years of figures (the checks normally look at {YEARS}), so the growth and '
                      'consistency checks rest on a shorter record')
@@ -90,6 +95,10 @@ def screen(ticker, meta, rows, price, fx, second_source=()):
     res['roic_min'] = min(roics) if len(roics) >= MIN_YEARS else None
     if len(roics) < len(ys):
         flags.append(f'ROIC missing for {len(ys) - len(roics)} years (negative capital or missing data)')
+    if res['roic_median'] is not None and res['roic_median'] > 1:
+        flags.append(f"ROIC median {res['roic_median']:.0%}: the invested capital is very small (often after large "
+                     'buybacks, or with negative equity), so the percentage says little; judge the business on cash '
+                     'conversion and margins instead')
     fcfs = [y['fcf'] for y in ys if y['fcf'] is not None]
     nis = [y['net_income'] for y in ys if y['fcf'] is not None and y['net_income'] is not None]
     res['fcf_to_net_income'] = sum(fcfs) / sum(nis) if len(nis) >= MIN_YEARS and sum(nis) > 0 else None
@@ -110,11 +119,19 @@ def screen(ticker, meta, rows, price, fx, second_source=()):
     res['margin_kind'] = margin_kind
     res['margin_median'] = statistics.median(gms) if len(gms) >= MIN_YEARS else None
     res['margin_min'] = min(gms) if len(gms) >= MIN_YEARS else None
-    shares = [y['diluted_shares'] for y in ys if y['diluted_shares']]
-    res['shares_change'] = cagr(shares[0], shares[-1], len(shares) - 1) if len(shares) >= MIN_YEARS else None
-    for a, b in zip(shares, shares[1:]):
+    shares = [(y['year'], y['diluted_shares']) for y in ys if y['diluted_shares']]
+    res['shares_change'] = (cagr(shares[0][1], shares[-1][1], len(shares) - 1) if len(shares) >= MIN_YEARS else None)
+    for i, ((_, a), (yb, b)) in enumerate(zip(shares, shares[1:])):
         if b / a > 1.4 or b / a < 0.7:
-            flags.append('share count jumps more than 40% in one year (merger or unadjusted split)')
+            if i <= 1 and b > a and len(shares) - i - 1 >= 3:
+                # a jump in the first years is usually the listing (the year's average counts the shares from before
+                # it only in part): measure dilution from the year after
+                rest = shares[i + 1:]
+                res['shares_change'] = cagr(rest[0][1], rest[-1][1], len(rest) - 1)
+                flags.append(f'share count jumps in {yb}, probably the stock market listing: dilution is measured '
+                             f'from {yb}')
+            else:
+                flags.append('share count jumps more than 40% in one year (merger or unadjusted split)')
             break
     # GARP
     revs = [y['revenue'] for y in ys if y['revenue']]
@@ -123,6 +140,12 @@ def screen(ticker, meta, rows, price, fx, second_source=()):
     fps = [y['fcf_ps'] for y in ys if y['fcf_ps'] is not None]
     k = 3 if len(fps) >= 7 else 2
     res['fcf_ps_growth'] = growth_of_averages(fps, k) if len(fps) >= MIN_YEARS else None
+    g, rg = res['fcf_ps_growth'], res['revenue_growth']
+    if g is not None and g > 0.25 and (rg is None or g > 2 * rg):
+        flags.append(f'cash per share grew {g:.0%} a year, far faster than revenue'
+                     + (f' ({rg:.0%})' if rg is not None else '')
+                     + ': often a weak first year (a cyclical low) or a one-off, so it overstates what the business can '
+                       'keep up; the starting growth rates and the price check cap it at 12%')
     # valuation (price converted into the reporting currency)
     res['price'], res['price_currency'] = price['price'], price['currency']
     res['price_date'] = price.get('date', '')

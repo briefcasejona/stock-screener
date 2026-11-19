@@ -28,7 +28,11 @@ CHECKS = [  # key, step, name, how the value reads, threshold
      lambda r: f"implied {core.gpct(r['implied_growth'])} vs cautious base {core.gpct(r.get('base_growth'))}",
      'implied ≤ base growth'),
 ]
-pct100 = lambda v: float('nan') if v is None else v * 100  # shown as 12.3%, or blank
+# Streamlit shows an empty number cell as "None" whatever the format. So each number column holds a text key that sorts
+# like the number ("" for none, which sorts first) and the table shows it formatted, or "—" for none.
+key = lambda v: '' if v is None else f'{v + 1e6:015.4f}'
+shown_as = lambda fmt: lambda k: '—' if k == '' else fmt.format(float(k) - 1e6)
+pct100 = lambda v: key(None if v is None else v * 100)
 RESULT = {'pass': '✅ Pass', 'fail': '❌ Fail', 'n/a': '— No data', 'ask': '❓ Ask why'}
 # why a check has no result
 NO_DATA = {
@@ -124,7 +128,8 @@ def render():
     least = 10 if least is None else least
     sectors = sorted({r['sector'] for r in rows if r['sector']})
     pick = f[2].multiselect('Sector', sectors, placeholder='All sectors', key='scr_sectors')
-    q = f[3].text_input('Search', placeholder='Company or ticker', key='scr_q').strip().lower()
+    import unicodedata  # "ＮＶＤＡ" typed with a Japanese or Chinese keyboard finds NVDA
+    q = unicodedata.normalize('NFKC', f[3].text_input('Search', placeholder='Company or ticker', key='scr_q')).strip().lower()
     # a search finds a company whatever its checks, and the companies you added yourself are always shown
     mine = added()
     view = [r for r in rows if (region == 'All' or r['region'] == region)
@@ -152,13 +157,12 @@ def render():
         'Checks': r['passed'], 'Quality': f"{r['quality_passed']}/6", 'GARP': f"{r['garp_passed']}/4",
         'Data': 'check first' if r.get('data_check') else '',
         'ROIC (median)': pct100(r['roic_median']), 'Revenue growth': pct100(r['revenue_growth']), 'Cash/share growth': pct100(r['fcf_ps_growth']),
-        'Growth price assumes': pct100(r['implied_growth']), 'P/E': float('nan') if r['pe'] is None else r['pe'],
+        'Growth price assumes': pct100(r['implied_growth']), 'P/E': key(r['pe']),
         'Years': r['years'], 'Source': r['source'],
         'Notes': (lambda n: f"{n} note{'s' if n > 1 else ''}" if n else '')(len(core.data_notes(r['data_flags'])))}
         for r in view])
-    # numbers stay numbers, so they sort as numbers
-    shown = table.style.format({k: '{:.1f}%' for k in ('ROIC (median)', 'Revenue growth', 'Cash/share growth',
-                                                        'Growth price assumes')} | {'P/E': '{:.1f}'}, na_rep='—')
+    shown = table.style.format({k: shown_as('{:.1f}%') for k in ('ROIC (median)', 'Revenue growth', 'Cash/share growth',
+                                                                  'Growth price assumes')} | {'P/E': shown_as('{:.1f}')})
     # the table is keyed on the filters, so a changed filter never leaves an old row number selected; the company you
     # had open stays selected when it is still in view
     fkey = f"scr_table_{region}_{least}_{'|'.join(pick)}_{q}"
@@ -168,18 +172,19 @@ def render():
                       selection_default={'selection': {'rows': [keep]}} if keep is not None else None,
                       height=min(420, 38 + 35 * len(view)), column_config={
                           'Company': st.column_config.TextColumn('Company', pinned=True),  # stays in view when scrolling
+                          **{k: st.column_config.TextColumn(k, alignment='right') for k in (
+                              'ROIC (median)', 'Revenue growth', 'Cash/share growth', 'Growth price assumes', 'P/E')},
                           'Checks': st.column_config.ProgressColumn('Checks', min_value=0, max_value=10, format='%d/10'),
                           'Data': st.column_config.TextColumn(
                               'Data', help='"check first": a figure differs from a second source, or debt, capital '
                                            'spending or the share count looks odd. Click the row for the notes.'),
                           'Notes': st.column_config.TextColumn(
                               'Notes', help='Notes on the data. Click the row to read them in full.')})
-    picked = list(ev.selection.rows) + [cell[0] for cell in getattr(ev.selection, 'cells', [])]
-    picked = [i for i in picked if i < len(view)]
-    if not picked:
+    i = core.picked(ev, len(view), keep, ss.setdefault(f'pick_{fkey}', {}))
+    if i is None:
         st.caption('Click a row to see its checks and analyse it.')
         return
-    r = view[picked[0]]
+    r = view[i]
     ss['scr_ticker'] = r['ticker']
     st.divider()
     st.subheader(r['company'])

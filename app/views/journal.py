@@ -41,10 +41,11 @@ def render():
             selection_mode=['single-row', 'single-cell'], key=f"jr_table_{who}_{'|'.join(pick)}",
             column_config={'Company': st.column_config.TextColumn('Company', pinned=True),
                            'Why': st.column_config.TextColumn(width='large')})
-        sel = list(ev.selection.rows) + [cell[0] for cell in getattr(ev.selection, 'cells', [])]
-        sel = [i for i in sel if i < len(entries)]
-        if sel:
-            e = entries[sel[0]]
+        i = core.picked(ev, len(entries), st.session_state.get('jr_open'),
+                        st.session_state.setdefault(f"pick_jr_{who}_{'|'.join(pick)}", {}))
+        st.session_state['jr_open'] = i
+        if i is not None:
+            e = entries[i]
             with st.container(border=True):
                 st.markdown(f"**{core.md(e['company'])}** · {e['date']} · {core.md(core.word(e.get('decision')))}"
                             + (f" · price {core.md(core.money(e['price'], e['currency']))}" if e.get('price') is not None
@@ -62,7 +63,8 @@ def render():
     cands = d['candidates']
     if cands:
         st.divider()
-        name = st.selectbox('Write an entry about', [c['company'] for c in cands])
+        focus = next((i for i, c in enumerate(cands) if c['ticker'] == st.session_state.get('cand_ticker')), 0)
+        name = st.selectbox('Write an entry about', [c['company'] for c in cands], index=focus)
         journal_form(next(c for c in cands if c['company'] == name), key='_journal_page')
 
 
@@ -77,7 +79,7 @@ def claims_part():
     a, b, c = st.columns(3)
     a.metric('Waiting for figures', r['open'])
     a2 = r.get('hit')
-    b.metric('Came true', 'n/a' if a2 is None else f"{a2:.0%}", f"of {r['settled']} checked", delta_color='off')
+    b.metric(f"Came true (of {r['settled']} checked)", 'n/a' if a2 is None else f"{a2:.0%}")
     nh = r.get('naive_hit')
     c.metric('Simple forecast right', 'n/a' if nh is None else f"{nh:.0%}",
              help='The same claims, judged by "the last three years\' trend continues" (for a margin: "it stays where '

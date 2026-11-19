@@ -245,7 +245,7 @@ def pick_lines(pages, items, digest, prefix, show=2):
             found = rank(found, kind, prefer, best, score)[:40]
             opts = ([] if needed else [None]) + found
             fmt = lambda f: 'Leave it out' if f is None else \
-                f"p{f[0]}: {f[2].strip()[:70]}  →  {', '.join(f'{v:,g}' for v in ur.numbers_on(f[2])[-show:])}"
+                f"{', '.join(f'{v:,g}' for v in ur.numbers_on(f[2])[-show:])}  ←  p{f[0]}: {f[2].strip()[:70]}"  # numbers first: a narrow box cuts the end
             # optional figures start on the best match too (leave one out if the company has no such line)
             pickl = r.selectbox('Line', opts, format_func=fmt, key=f'{prefix}l_{concept}_{digest}', label_visibility='hidden',
                                 index=(0 if needed else 1) if len(opts) > (0 if needed else 1) else 0 if opts else None,
@@ -314,6 +314,12 @@ def pdf_tab():
     y = year_end.year
     columns = [str(y), str(y - 1)] if order.startswith('newest') else [str(y - 1), str(y)]
     pages = pdf_text(path, digest)
+    said = re.sub(r'\s+', ' ', ' '.join(pages)).lower()  # the PDF's text, to check the year end against
+    forms = {f'{year_end.day} {year_end:%B %Y}', f'{year_end:%B} {year_end.day}, {year_end.year}', f'{year_end:%d.%m.%Y}',
+             year_end.isoformat(), f'{year_end.day} {year_end:%b %Y}', f'{year_end:%d/%m/%Y}'}
+    if not any(f.lower() in said for f in forms):
+        st.warning(f'The report never mentions {year_end.day} {year_end:%B %Y}. Check "Financial year ends on": many '
+                   'companies end their year on another date (31 March, 30 June, 30 September).')
     st.caption(f'{len(pages)} pages read. For each figure, pick the line from the statements (the numbers shown are '
                f'the last two on the line: {columns[0]}, then {columns[1]}). Change the search words if the right line '
                'is not offered.')
@@ -369,7 +375,9 @@ def interim_tab():
             'as a PDF, or in inline XBRL (.htm, .xhtml or .zip) when the company publishes one.',
             icon=':material/info:')
     u = core.universe()
-    pick = st.selectbox('Show the latest twelve months of', sorted(u, key=lambda k: u[k]['name'].lower()), index=None,
+    mine = {e['ticker'] for e in core.watchlist() if not e.get('hidden')}  # your candidates first
+    pick = st.selectbox('Show the latest twelve months of', sorted(u, key=lambda k: (k not in mine, u[k]['name'].lower())),
+                        index=None,
                         format_func=lambda k: f"{u[k]['name']} ({k})", key='q_show', placeholder='Type to search')
     if pick:
         quarter.show(pick, stamp=str(len(core.own_reports())))
@@ -422,6 +430,11 @@ def interim_pdf(ticker, name, yahoo, up):
                     help='A US 10-Q prints "three months" first and "nine months" last: the last two columns. Some '
                          'European reports print the half year first and the quarter last.')
     pages = pdf_text(path, digest)
+    said = re.sub(r'\s+', ' ', ' '.join(pages)).lower()
+    forms = {f'{end.day} {end:%B %Y}', f'{end:%B} {end.day}, {end.year}', f'{end:%d.%m.%Y}', end.isoformat(),
+             f'{end.day} {end:%b %Y}', f'{end:%d/%m/%Y}'}
+    if not any(f.lower() in said for f in forms):
+        st.warning(f'The report never mentions {end.day} {end:%B %Y}. Check "The report covers up to".')
     st.caption(f'{len(pages)} pages read. Pick each figure\'s line from the statements; the numbers shown are the last '
                'four on the line. The program uses the figures since the start of the year (not the quarter alone) '
                'and, on the balance sheet, the column for the report\'s own date.')

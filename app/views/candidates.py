@@ -16,8 +16,10 @@ BADGE = {'Buy': 'green', 'Wait': 'gray', 'No': 'red', 'Sell': 'orange', 'Still r
 def palette():
     """The value line's colours, for the light or the dark look (Apple's system colours)."""
     if (st.context.theme.type or 'light') == 'dark':
-        return {'zone': '#1f4d2c', 'band': '#48484a', 'ink': '#e5e5ea', 'price': '#ff453a', 'bars': '#64a8f0'}
-    return {'zone': '#d6f0dc', 'band': '#d1d1d6', 'ink': '#3a3a3c', 'price': '#d70015', 'bars': '#7fa6d6'}
+        return {'zone': '#1f4d2c', 'band': '#48484a', 'ink': '#e5e5ea', 'price': '#ff453a', 'bars': '#64a8f0',
+                'zonetext': '#7ee08f'}
+    return {'zone': '#d6f0dc', 'band': '#d1d1d6', 'ink': '#3a3a3c', 'price': '#d70015', 'bars': '#7fa6d6',
+            'zonetext': '#1d6b30'}
 
 
 def value_line(c, m):
@@ -40,8 +42,11 @@ def value_line(c, m):
                         for i, dy, dx, al in ((0, -26, 4, 'right'), (1, -44, 0, 'center'), (2, -26, -4, 'left'))])
     price = pd.DataFrame([{'v': c['price'], 'label': f"Price {core.money(c['price'], c['currency'])}"}])
     tick = alt.Chart(price).mark_tick(thickness=3, size=34, color=col['price']).encode(x=x)
-    ptxt = alt.Chart(price).mark_text(dy=30, fontSize=12, fontWeight='bold', color=col['price']).encode(x=x, text='label')
-    return alt.layer(zone, band, dots, names, tick, ptxt).properties(height=140).configure_view(stroke=None)
+    ptxt = alt.Chart(price).mark_text(dy=46, fontSize=12, fontWeight='bold', color=col['price']).encode(x=x, text='label')
+    # the buy zone's edge in words, not only in green (colour-blind readers can't tell the green from the grey)
+    bbtxt = alt.Chart(pd.DataFrame([{'v': bb, 'label': f"buy below {core.money(bb, c['currency'])} ▸"}])).mark_text(
+        dy=26, dx=-2, align='right', fontSize=11, color=col['zonetext']).encode(x=x, text='label')
+    return alt.layer(zone, band, dots, names, tick, ptxt, bbtxt).properties(height=160).configure_view(stroke=None)
 
 
 def sensitivity(c, scen):
@@ -151,7 +156,10 @@ def history_charts(hist, c):
         st.altair_chart(chart.properties(height=240))
         n = min(10, len(pe))
         st.caption((f"Dashed line: median of the last {n} year-end P/Es, {c['pe_median_10y']}. " if c.get('pe_median_10y')
-                    else '') + f"Today: {c.get('pe_ltm')} ({c.get('pe_basis', 'P/E')}).")
+                    else '') + f"Today: {c.get('pe_ltm')} ({c.get('pe_basis', 'P/E')}). "
+                   + "One year's earnings can include one-offs (a write-down, a tax gain), so compare with the price "
+                   + (f"÷ free cash flow per share (3-year average): {c['p_fcf']}." if c.get('p_fcf')
+                      else '÷ free cash flow per share.'))
     a, b = st.columns(2)
     with a:
         st.markdown('**Return on invested capital' + (' and gross margin**' if h['gross_margin'].notna().any()
@@ -167,6 +175,18 @@ def history_charts(hist, c):
         st.altair_chart(alt.Chart(h.dropna(subset=['revenue_m'])).mark_bar(color=palette()['bars'], cornerRadiusTopLeft=4, cornerRadiusTopRight=4).encode(
             x=year, y=alt.Y('revenue_m:Q', title=None),
             tooltip=['Year', alt.Tooltip('revenue_m:Q', format=',.0f')]).properties(height=240))
+    # the figures themselves, to check against the annual report (the lessons ask for this)
+    cols = {'revenue_m': 'Revenue', 'operating_income_m': 'Operating income', 'net_income_m': 'Net profit',
+            'operating_cash_flow_m': 'Cash from operations', 'capex_m': 'Capital spending', 'fcf_m': 'Free cash flow',
+            'shares_m': 'Shares (diluted, millions)', 'eps': f'EPS ({cur})', 'fcf_per_share': f'FCF per share ({cur})'}
+    have = [k for k in cols if k in h and h[k].notna().any()]
+    with st.expander('All figures, year by year', icon=':material/table:'):
+        t = h.set_index('Year')[have].rename(columns=cols).T
+        st.dataframe(t.map(lambda v: '' if pd.isna(v) else f'{v:,.2f}' if abs(v) < 100 else f'{v:,.0f}'),
+                     use_container_width=True)
+        st.caption('Millions in the report currency, as the program read them, except per-share figures (in '
+                   f'{cur}). ' + ('' if 'operating_income_m' in have else 'This analysis is older than the full '
+                                  'figures: they appear after its next update. '))
 
 
 def newest_first(entries):
@@ -251,8 +271,8 @@ def journal_form(c, key=''):
         change = st.text_input('What would change my mind?')
         nxt = st.text_input('Next check', value=c.get('next_check', ''))
         if st.form_submit_button('Add to the journal'):
-            if not why.strip():
-                st.error('Write at least a line on why.')
+            if not core.words(why):
+                st.error('Write at least a line on why (a few words).')
                 return
             core.add_journal_entry({'date': date.today().isoformat(), 'ticker': c['ticker'], 'company': c['company'],
                                     'price': c['price'], 'currency': c['currency'], 'decision': dec,
@@ -347,26 +367,60 @@ def commit_form(c, scen, hist):
                      'starting point.')
             return
         try:
-            commit.new(c, g, round(v, 2), why, start=pick)
+            base = next((s for s in scen if s['scenario'] == 'Base'), {})
+            commit.new(c, g, round(v, 2), why, start=pick,
+                       program={'growth': base.get('growth'), 'value': c.get('base'), 'source': c.get('assumptions_source')})
         except ValueError as e:
             st.error(str(e))
             return
         data.changed()
+        st.session_state['just_locked'] = c['ticker']
         st.rerun()
+
+
+def locked_note(c):
+    """Right after you lock in your estimate: the verdict at the top, scrolled into view (the page used to stay at the
+    bottom, where the form was)."""
+    if st.session_state.get('just_locked') != c['ticker']:
+        return
+    del st.session_state['just_locked']
+    mine = commit.get(c['ticker'])
+    if not mine:
+        return
+    ig = c.get('implied_growth')
+    st.success(core.md(f"Locked in: you expect {core.gpct(mine['growth'] / 100)} growth a year and a value of "
+                       f"{core.money(mine['value'], mine['currency'])}."
+                       + (f" The price assumes {core.gpct(ig)}: by your numbers it is "
+                          + ('fair or cheap.' if mine['growth'] / 100 >= ig else 'asking for more growth than you expect.')
+                          if ig is not None else '')
+                       + " The program's numbers are now shown below; the Valuation tab puts them next to yours."),
+               icon=':material/lock:')
+    import streamlit.components.v1 as components
+    components.html('<script>const a = window.parent.document.querySelector(\'[data-testid="stAlertContentSuccess"]\');'
+                    'if (a) a.scrollIntoView({block: "center"});</script>', height=0)
 
 
 def compare(c, scen):
     mine = commit.get(c['ticker'])
     if not mine:
         return
-    base = next((s for s in scen if s['scenario'] == 'Base'), {})
-    gap = mine['value'] / c['base'] - 1 if c.get('base') else None
-    st.markdown(f"**Your estimate ({mine['date']}) next to the program's**")
+    # the program's own base case as it was when you wrote yours down: once you set your own growth rates, the current
+    # base case is yours, and comparing with it would be comparing you with yourself
+    prog = mine.get('program')
+    if not prog:
+        if core.reviewed(c):
+            st.caption("The program's own estimate was not kept for this company (written down before it was), and the "
+                       'base case is now your own growth rates, so there is nothing independent to compare with.')
+            return
+        base = next((s for s in scen if s['scenario'] == 'Base'), {})
+        prog = {'growth': base.get('growth'), 'value': c.get('base')}
+    gap = mine['value'] / prog['value'] - 1 if prog.get('value') else None
+    st.markdown(f"**Your estimate ({mine['date']}) next to the program's starting point**")
     st.dataframe(pd.DataFrame([
         {'': 'Growth a year, next 10 years', 'You': core.gpct(mine['growth'] / 100),
-         'The program (base case)': core.gpct(base.get('growth')), 'The price assumes': core.gpct(c['implied_growth'])},
+         'The program (base case)': core.gpct(prog.get('growth')), 'The price assumes': core.gpct(c['implied_growth'])},
         {'': 'Value of one share', 'You': core.money(mine['value'], mine['currency']),
-         'The program (base case)': core.money(c['base'], c['currency']),
+         'The program (base case)': core.money(prog.get('value'), c['currency']),
          'The price assumes': core.money(c['price'], c['currency'])}]), hide_index=True)
     if c.get('implied_growth') is not None:
         more = mine['growth'] / 100 >= c['implied_growth']
@@ -412,6 +466,20 @@ def removed_part():
                 a.write(f"{e.get('company', e['ticker'])} · removed {e['hidden']}")
                 if b.button('Put back', key=f"unhide_{e['ticker']}"):
                     set_hidden(e['ticker'], False)
+
+
+def screen_notes(c):
+    """The Screener's notes on this company's data, shown where it is valued too (they used to stay on the Screener)."""
+    row = next((r for r in data.screen() if r['ticker'] == c['ticker']), None)
+    notes = core.data_notes(row['data_flags']) if row else []
+    if not notes:
+        return
+    if row.get('data_check'):
+        st.warning('**Check these figures in the annual report before you rely on the values below.**\n\n'
+                   + '\n'.join(f'- {core.md(n)}' for n in notes), icon=':material/fact_check:')
+    else:
+        with st.expander(f"Notes on the data ({len(notes)})", icon=':material/info:'):
+            st.markdown('\n'.join(f'- {core.md(n)}' for n in notes))
 
 
 def margin_control():
@@ -479,8 +547,9 @@ def render():
                                          if isinstance(widths.get('Company'), dict) else None),
                                      'Price vs buy-below': st.column_config.TextColumn(
                                      help='How far the price is above (+) or below (−) the buy-below price.')})
-    picked = list(ev.selection.rows) + [cell[0] for cell in getattr(ev.selection, 'cells', [])]
-    sel = picked[0] if picked and picked[0] < len(cands) else default
+    memo = ss.setdefault(f"pick_cand_{ss.get('cand_gen', 0)}_{len(cands)}", {})
+    sel = core.picked(ev, len(cands), default, memo)
+    sel = default if sel is None else sel
     c = cands[sel]
     ss['cand_ticker'] = c['ticker']
     entry = next((e for e in core.watchlist() if e['ticker'] == c['ticker']), None)
@@ -494,6 +563,7 @@ def render():
     if entry and b.button('Remove from list', icon=':material/remove_circle:', key=f"hide_{c['ticker']}", type='tertiary',
                           help='Takes it off your candidates. You can put it back any time, exactly as it was.'):
         set_hidden(c['ticker'], True)
+    screen_notes(c)
     if not committed(c, entry):
         st.metric(f"Price, {c.get('price_date', '')}", core.money(c['price'], c['currency']),
                   help='The latest close the program has; the Screener shows the same price.')
@@ -508,6 +578,7 @@ def render():
         with t[3]:
             journal_part(c, d['journal'], masked=True)
         return
+    locked_note(c)
     mine, when = core.my_decision(c, d['journal'])
     fact = core.position(c, m)
     st.markdown(core.md(
@@ -528,7 +599,7 @@ def render():
                 help='Reverse DCF: the yearly cash-flow growth for 10 years that makes the value equal today\'s price, '
                      'next to the growth the company delivered.')
     st.altair_chart(value_line(c, m))
-    st.caption('Grey bar: bear to bull value. Green: the buy zone, up to the buy-below price. Red: today\'s price.')
+    st.caption('Grey bar: bear to bull value. Green: the buy zone, up to the buy-below price (labelled). Red: today\'s price.')
 
     t = st.tabs(['Valuation', '10 checks', 'History', 'Latest quarter', 'Your growth rates', 'Journal'],
                 key='cand_tabs')
@@ -546,9 +617,12 @@ def render():
         sensitivity(c, scen)
     with t[1]:
         checks = [x for x in d['checks'] if x['company'] == c['company']]
+        from views.screener import CHECKS, NO_DATA  # why a check has no result, by its name
+        no_data = {n: NO_DATA[k] for k, _, n, _, _ in CHECKS if k in NO_DATA}
         st.dataframe(pd.DataFrame([{'Check': x['filter'],
                                     'Result': {'Pass': '✅ Pass', 'Fail': '❌ Fail', 'Ask why': '❓ Ask why'}.get(
-                                        x['result'], '— ' + x['result']),
+                                        x['result'], '— ' + x['result'] + (
+                                            f": {no_data[x['filter']]}" if x['filter'] in no_data else '')),
                                     'Value': x['value'], 'Threshold': x['threshold'], 'Step': x['step']}
                                    for x in checks]), hide_index=True,
                      column_config={'Check': st.column_config.TextColumn(pinned=True)})

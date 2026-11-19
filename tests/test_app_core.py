@@ -83,5 +83,36 @@ class Backups(unittest.TestCase):
             core.restore_backup(io.BytesIO(buf.getvalue()))
 
 
+
+class Reasons(unittest.TestCase):
+    def test_junk_is_not_a_reason(self):
+        for junk in ('', 'x', '.', '🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀', 'a b c d'):
+            self.assertFalse(core.words(junk), junk)
+        self.assertTrue(core.words('margins keep rising'))
+
+
+
+class TableChoice(unittest.TestCase):
+    def ev(self, rows=(), cells=()):
+        from types import SimpleNamespace as N
+        return N(selection=N(rows=list(rows), cells=list(cells)))
+
+    def test_a_click_in_another_row_wins_over_the_ticked_row(self):
+        self.assertEqual(core.picked(self.ev(rows=[0], cells=[(1, 'Company')]), 2, current=0), 1)
+
+    def test_nothing_new_keeps_the_open_row(self):
+        self.assertEqual(core.picked(self.ev(rows=[1], cells=[(1, 'Price')]), 2, current=1), 1)
+
+    def test_the_old_ticked_row_does_not_come_back_on_the_next_run(self):
+        memo = {}
+        ev = self.ev(rows=[0], cells=[(1, 'Company')])
+        core.picked(self.ev(rows=[0]), 2, 0, memo)  # first run: the default row
+        self.assertEqual(core.picked(ev, 2, 0, memo), 1)  # a click in row 1
+        self.assertEqual(core.picked(ev, 2, 1, memo), 1)  # typing elsewhere reruns with the same selection
+
+    def test_no_selection(self):
+        self.assertIsNone(core.picked(self.ev(), 2, current=0))
+        self.assertIsNone(core.picked(self.ev(rows=[5]), 2))  # a row that is gone after a filter
+
 if __name__ == '__main__':
     unittest.main()

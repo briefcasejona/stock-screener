@@ -144,7 +144,8 @@ def render():
              f'{core.KEEP_BACKUPS} are kept, {core.KEEP_BACKUPS_SYNCED} when the folder is in Google Drive or similar, '
              f'in the "backups" folder). Now and then, also keep a copy somewhere off '
              'this laptop, like a USB stick.')
-    st.download_button('Download a backup', core.backup_bytes(), file_name=f'stock-screener-backup-{date.today()}.zip',
+    st.download_button('Download a backup', core.backup_bytes,  # made only when pressed, not on every page load
+                       file_name=f'stock-screener-backup-{date.today()}.zip',
                        mime='application/zip', icon=':material/download:')
     up = st.file_uploader('Restore a backup', type=['zip'])
     if up and st.button('Restore it (replaces your current journal and watchlist)'):
@@ -211,21 +212,25 @@ def data_folder_part():
     if a.button('Move my data there', type='primary', disabled=not folder):
         try:
             dst = datafolder.move(folder)
-            st.success(f'Your data is copied to {dst}. Quit the program (the Quit button at the bottom of this page) and start it again to use it. '
-                       f'The old folder ({core.DATA}) stays as a spare copy; you can delete it once all works.')
+            core.RESTART_NEEDED = (f'Your data is copied to {dst}. The old folder ({core.DATA}) stays as a spare copy; '
+                                   'you can delete it once all works.')
+            st.rerun()
         except (ValueError, OSError) as e:
             st.error(str(e))
     if b.button('Use the data that is already there', disabled=not folder):
         try:
             dst = datafolder.use(folder)
-            st.success(f'This computer now uses {dst}. Quit the program (the Quit button at the bottom of this page) and start it again.')
+            core.RESTART_NEEDED = (f'This computer now uses {dst}. The data that was on this computer stays in '
+                                   f'{core.DATA}, untouched, as a spare copy.')
+            st.rerun()
         except (ValueError, OSError) as e:
             st.error(str(e))
     if core.DATA != datafolder.DEFAULT:
         if st.button('Go back to the folder on this computer only'):
             datafolder.back_to_default()
-            st.success(f'After a restart this computer uses {datafolder.DEFAULT} again. Your data in {core.DATA} stays '
-                       'where it is; copy it back with a backup (above) if you need it.')
+            core.RESTART_NEEDED = (f'After a restart this computer uses {datafolder.DEFAULT} again. Your data in '
+                                   f'{core.DATA} stays where it is; copy it back with a backup if you need it.')
+            st.rerun()
 
 
 def summary_part():

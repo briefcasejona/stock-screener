@@ -311,7 +311,10 @@ def cmd_pdf(args):
             problems.append(f'{y}: balance sheet does not balance ({a:,.0f} vs {el:,.0f})')
         ni, eps, sh = get('ProfitLossAttributableToOwnersOfParent', y), get('DilutedEarningsLossPerShare', y), get('AdjustedWeightedAverageShares', y)
         if ni and eps and sh and abs(eps * sh / ni - 1) > 0.02:
-            problems.append(f'{y}: EPS x shares is {eps * sh:,.0f}, net profit {ni:,.0f}')
+            r = abs(eps * sh / ni)
+            hint = ' (about 1,000 or 1,000,000 times off: check "Share numbers are in")' if \
+                any(0.9 * k < r < 1.1 * k or 0.9 / k < r < 1.1 / k for k in (1e3, 1e6)) else ''
+            problems.append(f'{y}: EPS x shares is {eps * sh:,.0f}, net profit {ni:,.0f}{hint}')
     # the cash flow statement's own closing cash when given (it can include cash held for sale or overdrafts)
     cash_key = 'CashFlowStatementClosingCash' if 'CashFlowStatementClosingCash' in m['items'] else 'CashAndCashEquivalents'
     cash = [get(cash_key, y) for y in m['columns']]

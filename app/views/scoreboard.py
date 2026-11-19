@@ -75,7 +75,7 @@ def rules_form(state, first):
             if one > cap:
                 st.error('The cap for one company can\'t be bigger than the cap for all picks together.')
                 return
-            if not first and not why.strip():
+            if not first and not core.words(why):
                 st.error('Write a line on why you change your rules.')
                 return
             try:
@@ -209,8 +209,8 @@ def record(state):
                 if not unlocked:
                     st.caption(P.REAL_LOCKED)
                 if st.form_submit_button('Record the buy', type='primary'):
-                    if not why.strip():
-                        st.error('Write one line on why. It is the line you will check yourself against later.')
+                    if not core.words(why):
+                        st.error('Write one line on why (a few words at least). It is the line you will check yourself against later.')
                     else:
                         do(lambda c: P.new_trade(state, 'buy', today if kind == 'Paper' else day, amount=amount,
                                                  ticker=tk, company=names[tk], symbol=symbol_of(tk), price=price or None,
@@ -239,8 +239,8 @@ def record(state):
                 price = c.number_input('Price you got per share (real trades only, optional)', 0.0, 1e7, 0.0)
                 why = st.text_input('Why sell? (one line, goes in the journal)')
                 if st.form_submit_button('Record the sale', type='primary'):
-                    if not why.strip():
-                        st.error('Write one line on why.')
+                    if not core.words(why):
+                        st.error('Write one line on why (a few words at least).')
                     else:
                         t = held[key]
                         do(lambda c: P.new_trade(state, 'sell', today if on_paper else day, units=units, ticker=tk,

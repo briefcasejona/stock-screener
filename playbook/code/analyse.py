@@ -46,12 +46,15 @@ r4 = lambda x: None if x is None else round(x, 4)
 
 def default_assumptions(delivered, recent_revenue):
     """Starting rule: base = the lower of delivered FCF/share growth and the last 3 years' revenue growth, kept between
-    2% and 12%; bear = half of base; bull = the delivered growth (at least 1.5 x base), at most 20%. On ASML this gives
+    2% and 12%; bear = half of base, or the last 3 years' revenue growth when lower (at least -5%); bull = the delivered growth (at least 1.5 x base), at most 20%. On ASML this gives
     12% / 6% / 20%, close to the worked example's judgement (12% / 6% / 19%). The screener's "reasonable price" check
     uses the same base growth (screen.base_growth)."""
     base = scr.base_growth(delivered, recent_revenue)
     bull = min(max(delivered if delivered is not None else 0, base * 1.5), 0.20)
-    return {'bear': round(base / 2, 4), 'base': base, 'bull': round(bull, 4),
+    # bear: half of base, or the recent revenue trend when that is weaker, so a shrinking company's bear case shrinks too
+    # (down to -5% a year)
+    bear = base / 2 if recent_revenue is None else max(min(base / 2, recent_revenue), -0.05)
+    return {'bear': round(bear, 4), 'base': base, 'bull': round(bull, 4),
             'source': 'starting rule from delivered growth (not yet reviewed)'}
 
 
@@ -171,7 +174,11 @@ def analyse(ticker, assumptions=None, fcf_basis='average', follow='Watching', an
         hist.append({'year': y['year'], 'revenue_m': r1(y['revenue'] / 1e6) if y['revenue'] else None,
                      'fcf_per_share': r2(y['fcf_ps'] / ky) if y['fcf_ps'] is not None else None, 'eps': r2(eps),
                      'year_end_price': r2(p), 'pe_year_end': r1(p / eps) if p and eps and eps > 0 else None,
-                     'roic': r4(y['roic']), 'gross_margin': r4(y['gross_margin'])})
+                     'roic': r4(y['roic']), 'gross_margin': r4(y['gross_margin']),
+                     # the report's own figures, in millions of the report currency, to check against the annual report
+                     **{f'{key}_m': r1(y[key] / 1e6) if y.get(key) is not None else None
+                        for key in ('operating_income', 'net_income', 'operating_cash_flow', 'capex', 'fcf')},
+                     'shares_m': r1(y['diluted_shares'] / 1e6) if y.get('diluted_shares') else None})
     pes = [h['pe_year_end'] for h in hist if h['pe_year_end'] is not None]
     last_end = date.fromisoformat(rows[-1]['period_end'])
     expected = last_end.replace(year=last_end.year + 1) + timedelta(days=80)
@@ -185,13 +192,14 @@ def analyse(ticker, assumptions=None, fcf_basis='average', follow='Watching', an
         'bear': r1(scen['bear']['value']), 'base': r1(base), 'bull': r1(scen['bull']['value']),
         'buy_below': r1(buy_below), 'price_to_buy_below': r2(price / buy_below) if buy_below > 0 else None,
         'implied_growth': r4(implied), 'delivered_growth': r4(res['fcf_ps_growth']),
-        'pe_ltm': r1(res['pe']), 'pe_basis': f"P/E, {res['last_year']} full year",
+        'pe_ltm': r1(res['pe']), 'pe_basis': f"today's price ÷ {res['last_year']} earnings per share",
+        'p_fcf': r1(price / fcf0) if fcf0 > 0 else None,
         'pe_median_10y': r1(statistics.median(pes)) if pes else None, 'pe_min_10y': r1(min(pes)) if pes else None,
         'pe_max_10y': r1(max(pes)) if pes else None, 'fcf0': r4(fcf0), 'net_cash_per_share': r4(net_cash),
         'quality_passed': res['quality_passed'], 'quality_total': 6, 'garp_passed': res['garp_passed'], 'garp_total': 4,
         'reviewed': a.get('reviewed') is True, 'years': len(ys), 'first_year': ys[0]['year'],
         'next_check': f"Annual report FY{last_end.year + 1}, around {expected.strftime('%b %Y')}",
-        'follow': follow, 'analysed': today, 'figures_to': rows[-1]['period_end'], 'region': 'US' if region == 'us' else 'Europe',
+        'follow': follow, 'analysed': today, 'figures_to': rows[-1]['period_end'], 'region': 'US' if region == 'us' or u.get('country') == 'US' else 'Europe',  # US ones you added sit in eu files
         'fcf_basis': 'normalised (average margin x latest revenue)' if fcf_basis == 'normalised' else 'average of the last 3 years',
         'assumptions_source': a.get('source', 'set by hand'), 'notes': '; '.join(notes),
         'price_raw': raw_price, 'price_currency_raw': raw_ccy, 'yahoo': u['yahoo'],

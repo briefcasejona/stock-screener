@@ -32,7 +32,8 @@ KEEP_INSTALLERS = 2
 
 def choices():
     try:
-        return json.load(open(CHOICES, encoding='utf-8'))
+        with open(CHOICES, encoding='utf-8') as f:
+            return json.load(f)
     except (OSError, ValueError):
         return {}
 

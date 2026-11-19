@@ -423,21 +423,23 @@ def accept_difference(s, broker, currency, amount, day):
 
 
 def sold_report(s, mk):
-    """Holdings you sold completely: how each did after your last sale, against your index fund over the same days
+    """Holdings you sold, completely or in part: how each did after your last sale, against your index fund over the same days
     (prices only, in euros). Like a "No": if it trails the index afterwards, selling was a good call."""
     pos, _ = positions(s)
     idx = index_symbol(s)
     today = date.today().isoformat()
     out = []
     for isin, p in pos.items():
-        if abs(p['units']) > 1e-9 or not p['received_eur']:
+        sells = [e['date'] for e in s['events'] if e.get('isin') == isin and e['kind'] in ('sell', 'position_out')]
+        if not sells or not p['received_eur']:
             continue
-        last = max(e['date'] for e in s['events'] if e.get('isin') == isin and e['kind'] in ('sell', 'position_out'))
+        last = max(sells)
+        part = abs(p['units']) > 1e-9  # still holding some: the result is not final yet
         sec = s['securities'].get(isin, {})
         a0, a1 = price_eur(mk, sec.get('symbol'), last), price_eur(mk, sec.get('symbol'), today)
         b0, b1 = price_eur(mk, idx, last), price_eur(mk, idx, today)
         out.append({'isin': isin, 'name': sec.get('name', isin), 'sold': last, 'why': sec.get('sold_why', ''),
-                    'result_eur': p['received_eur'] + p['dividends_eur'] - p['paid_eur'],
+                    'part': part, 'result_eur': None if part else p['received_eur'] + p['dividends_eur'] - p['paid_eur'],
                     'stock_since': a1 / a0 - 1 if a0 and a1 else None,
                     'index_since': b1 / b0 - 1 if b0 and b1 else None})
     return sorted(out, key=lambda r: r['sold'], reverse=True)

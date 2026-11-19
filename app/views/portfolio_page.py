@@ -313,11 +313,15 @@ def sold_part(s, mk):
     if not rows:
         return
     st.subheader('What you sold')
-    st.caption('Selling is a decision too. Since your last sale, prices only, in euros: if a company you sold then '
+    st.caption('Selling is a decision too, a part sale as well. Since your last sale, prices only, in euros: if a company you sold then '
                'trails your index fund, selling was a good call.')
     pct = lambda v: signed(v) if v is not None else 'n/a'
-    st.dataframe(pd.DataFrame([{'Holding': r['name'], 'Sold on': r['sold'], 'Your result': EUR(r['result_eur']),
-                                'It did since': pct(r['stock_since']), 'Index fund since': pct(r['index_since']),
+    st.dataframe(pd.DataFrame([{'Holding': name(r['name']) + (' (part sold)' if r.get('part') else ''),
+                                'Sold on': r['sold'],
+                                'Your result': 'still held in part' if r['result_eur'] is None else EUR(r['result_eur']),
+                                'It did since': pct(r['stock_since']),
+                                'Index fund since': pct(r['index_since']) if r['index_since'] is not None else
+                                'no index price (pick your index fund on the Scoreboard)',
                                 'So far': '' if r['stock_since'] is None or r['index_since'] is None else
                                 ('too early to tell' if abs(r['stock_since'] - r['index_since']) < 0.0005 else
                                  'good call' if r['stock_since'] < r['index_since'] else 'it did better'),
@@ -328,9 +332,9 @@ def sold_part(s, mk):
             pick = st.selectbox('Write down why you sold', [r['name'] for r in todo])
             why = st.text_input('Why', placeholder='e.g. bought without research; freeing money for the index fund')
             saved = st.form_submit_button('Save')
-            if saved and not why.strip():
+            if saved and not core.words(why):
                 st.error('Write a line on why.')
-            if saved and why.strip():
+            elif saved:
                 r = next(r for r in todo if r['name'] == pick)
                 s['securities'][r['isin']]['sold_why'] = why.strip()
                 H.save(s)
